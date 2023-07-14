@@ -37,6 +37,13 @@ class camera:
     SENSOR_5MP_2 = 0x83
     SENSOR_3MP_2 = 0x84
     
+    # Set mode
+    CAM_REG_COLOR_EFFECT_CONTROL = 0x27
+    SPECIAL_NORMAL = 0x00
+    SPECIAL_BW = 0x04
+    SPECIAL_GREENISH = 0x20
+    
+    
     # Device addressing
     CAM_REG_DEBUG_DEVICE_ADDRESS = 0x0A
     deviceAddress = 0x78
@@ -83,7 +90,8 @@ class camera:
         self._waitIdle()
         
         self.pixel_format = camera.CAM_IMAGE_PIX_FMT_JPG
-        self.mode = camera.RESOLUTION_320X240
+        self.mode = camera.RESOLUTION_640X480
+        self.setCameraFilter(self.SPECIAL_NORMAL)
         
         self.receivedLength = 0
         self.totalLength = 0
@@ -228,12 +236,15 @@ class camera:
     def _startCapture(self):
         self._writeReg(camera.ARDUCHIP_FIFO, camera.FIFO_START_MASK)
         
+    def setCameraFilter(self, effect):
+        self._writeReg(self.CAM_REG_COLOR_EFFECT_CONTROL, effect)
+        self._waitIdle()
 
 
 
 ################################################################## CODE ACTUAL ##################################################################
 spi = SPI(0,sck=Pin(18), miso=Pin(16), mosi=Pin(19))
-cs = Pin(0, Pin.OUT)
+cs = Pin(17, Pin.OUT)
 
 cam = camera(spi, cs)
 
