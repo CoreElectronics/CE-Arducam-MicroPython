@@ -1,6 +1,6 @@
 # Arducam port to Pico
 
-from machine import Pin, SPI
+from machine import Pin, SPI, reset
 # Developing on 1.19
 '''
 #################### PINOUT ###############
@@ -60,6 +60,7 @@ class camera:
     RESOLUTION_160X120 = 0x00
     RESOLUTION_320X240 = 0x01
     RESOLUTION_640X480 = 0x02
+    RESOLUTION_1920X1080 = 0x80
     CAM_IMAGE_MODE_FHD = 0x07
 
     # 
@@ -82,15 +83,15 @@ class camera:
         self.cs = cs
         self.spi_bus = spi_bus
 
-        self._writeReg(camera.CAM_REG_SENSOR_RESET, camera.CAM_SENSOR_RESET_ENABLE) # Reset camera
+        self._writeReg(self.CAM_REG_SENSOR_RESET, self.CAM_SENSOR_RESET_ENABLE) # Reset camera
         self._waitIdle()
         self.getSensorConfig() # Get camera sensor information
         self._waitIdle()
-        self._writeReg(camera.CAM_REG_DEBUG_DEVICE_ADDRESS, camera.deviceAddress)
+        self._writeReg(self.CAM_REG_DEBUG_DEVICE_ADDRESS, self.deviceAddress)
         self._waitIdle()
         
-        self.pixel_format = camera.CAM_IMAGE_PIX_FMT_JPG
-        self.mode = camera.RESOLUTION_640X480
+        self.pixel_format = self.CAM_IMAGE_PIX_FMT_JPG
+        self.mode = self.RESOLUTION_1920X1080
         self.setCameraFilter(self.SPECIAL_NORMAL)
         
         self.receivedLength = 0
@@ -107,15 +108,16 @@ class camera:
         new_pixel_format = 0x00
         new_resolution = 0x00
         
-        
+        print('capturing jep')
         # TODO: PROPERTIES TO CONFIGURE THE PIXEL FORMAT
-        if new_pixel_format != self.pixel_format:
-            self._writeReg(camera.CAM_REG_FORMAT, self.pixel_format) # Set to capture a jpg
+        if True:#new_pixel_format != self.pixel_format:
+            self._writeReg(self.CAM_REG_FORMAT, self.pixel_format) # Set to capture a jpg
             self._waitIdle()
         
         # TODO: PROPERTIES TO CONFIGURE THE RESOLUTION
-        if new_resolution != self.mode:
-            self._writeReg(camera.CAM_REG_CAPTURE_RESOLUTION, self.mode) # Set to capture a jpg
+        if True:#new_resolution != self.mode:
+            self._writeReg(self.CAM_REG_CAPTURE_RESOLUTION, self.mode) # Set to capture a jpg
+            print('setting res', self.CAM_REG_CAPTURE_RESOLUTION, self.mode)
             self._waitIdle()
         
         # Start capturing the photo
@@ -159,7 +161,7 @@ class camera:
                 jpg_to_write.close()
     
     def getSensorConfig(self):
-        self.cameraID = self._readReg(camera.CAM_REG_SENSOR_ID);
+        self.cameraID = self._readReg(self.CAM_REG_SENSOR_ID);
         self._waitIdle()
 #         print(self.cameraID)
         print('TODO DIFFERENTIATE MODELS')
@@ -193,7 +195,7 @@ class camera:
 
     def _readByte(self):
         self.cs.off()
-        self.spi_bus.write(bytes([camera.SINGLE_FIFO_READ]))
+        self.spi_bus.write(bytes([self.SINGLE_FIFO_READ]))
         data = self.spi_bus.read(1)
         data = self.spi_bus.read(1)
         self.cs.on()
@@ -201,16 +203,16 @@ class camera:
         return data
     
     def _waitIdle(self):
-        data = self._readReg(camera.CAM_REG_SENSOR_STATE)
-        while ((int.from_bytes(data, 1) & 0x03) == camera.CAM_REG_SENSOR_STATE_IDLE):
-            data = self._readReg(camera.CAM_REG_SENSOR_STATE)
+        data = self._readReg(self.CAM_REG_SENSOR_STATE)
+        while ((int.from_bytes(data, 1) & 0x03) == self.CAM_REG_SENSOR_STATE_IDLE):
+            data = self._readReg(self.CAM_REG_SENSOR_STATE)
             sleep_ms(2)
 
     def _setCapture(self):
         self._clearFIFOFlag()
         self._startCapture()
         print('set cap a')
-        while (self._getBit(camera.ARDUCHIP_TRIG, camera.CAP_DONE_MASK) == 0):
+        while (self._getBit(self.ARDUCHIP_TRIG, self.CAP_DONE_MASK) == 0):
             sleep_ms(1)
         print('set cap b')
         self.receivedLength = self._readFIFOLength()
@@ -219,9 +221,9 @@ class camera:
         ###################################################################### FINISH THIS UP
     
     def _readFIFOLength(self): # TODO: CONFIRM AND SWAP TO A 3 BYTE READ
-        len1 = int.from_bytes(self._readReg(camera.FIFO_SIZE1),1)
-        len2 = int.from_bytes(self._readReg(camera.FIFO_SIZE2),1)
-        len3 = int.from_bytes(self._readReg(camera.FIFO_SIZE3),1)
+        len1 = int.from_bytes(self._readReg(self.FIFO_SIZE1),1)
+        len2 = int.from_bytes(self._readReg(self.FIFO_SIZE2),1)
+        len3 = int.from_bytes(self._readReg(self.FIFO_SIZE3),1)
         print(len1,len2,len3)
         return ((len3 << 16) | (len2 << 8) | len1) & 0xffffff
         
@@ -231,10 +233,10 @@ class camera:
         return int.from_bytes(data, 1) & bit;
 
     def _clearFIFOFlag(self):
-        self._writeReg(camera.ARDUCHIP_FIFO, camera.FIFO_CLEAR_ID_MASK)
+        self._writeReg(self.ARDUCHIP_FIFO, self.FIFO_CLEAR_ID_MASK)
         
     def _startCapture(self):
-        self._writeReg(camera.ARDUCHIP_FIFO, camera.FIFO_START_MASK)
+        self._writeReg(self.ARDUCHIP_FIFO, self.FIFO_START_MASK)
         
     def setCameraFilter(self, effect):
         self._writeReg(self.CAM_REG_COLOR_EFFECT_CONTROL, effect)
@@ -247,10 +249,15 @@ spi = SPI(0,sck=Pin(18), miso=Pin(16), mosi=Pin(19))
 cs = Pin(17, Pin.OUT)
 
 cam = camera(spi, cs)
+sleep_ms(1000)
 
 cam.captureJPG()
-
+sleep_ms(1000)
 cam.saveJPG('/please.jpg')
+
+cam.captureJPG()
+sleep_ms(1000)
+cam.saveJPG('/please2.jpg')
 
 #################################################################################################################################################
 
