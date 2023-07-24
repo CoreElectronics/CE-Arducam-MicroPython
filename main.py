@@ -29,7 +29,7 @@ class camera:
     CAM_REG_SENSOR_RESET = 0x07
     CAM_SENSOR_RESET_ENABLE = 0x40
     
-    # For getSensorConfig
+    # For get_sensor_config
     CAM_REG_SENSOR_ID = 0x40
     
     SENSOR_5MP_1 = 0x81
@@ -39,7 +39,7 @@ class camera:
     
     # Device addressing
     CAM_REG_DEBUG_DEVICE_ADDRESS = 0x0A
-    deviceAddress = 0x78
+    DEVICE_ADDRESS = 0x78
     
     # For Waiting
     CAM_REG_SENSOR_STATE = 0x44
@@ -75,25 +75,25 @@ class camera:
         self.cs = cs
         self.spi_bus = spi_bus
 
-        self._writeReg(camera.CAM_REG_SENSOR_RESET, camera.CAM_SENSOR_RESET_ENABLE) # Reset camera
-        self._waitIdle()
-        self.getSensorConfig() # Get camera sensor information
-        self._waitIdle()
-        self._writeReg(camera.CAM_REG_DEBUG_DEVICE_ADDRESS, camera.deviceAddress)
-        self._waitIdle()
+        self._write_reg(camera.CAM_REG_SENSOR_RESET, camera.CAM_SENSOR_RESET_ENABLE) # Reset camera
+        self._wait_idle()
+        self.get_sensor_config() # Get camera sensor information
+        self._wait_idle()
+        self._write_reg(camera.CAM_REG_DEBUG_DEVICE_ADDRESS, camera.deviceAddress)
+        self._wait_idle()
         
         self.pixel_format = camera.CAM_IMAGE_PIX_FMT_JPG
         self.mode = camera.RESOLUTION_320X240
         
-        self.receivedLength = 0
-        self.totalLength = 0
-        self.burstFirstFlag = False
+        self.received_length = 0
+        self.total_length = 0
+        self.burst_first_flag = False
         print('camera init')
     '''
     Issue warning if the filepath doesnt end in .jpg (Blank) and append
     Issue error if the filetype is NOT .jpg
     '''
-    def captureJPG(self):
+    def capture_JPG(self):
         
         # TODO: CLASSES CALL THE FUNCTION TO UPDATE NEW PIXEL FORMAT AND MODE
         new_pixel_format = 0x00
@@ -102,63 +102,63 @@ class camera:
         
         # TODO: PROPERTIES TO CONFIGURE THE PIXEL FORMAT
         if new_pixel_format != self.pixel_format:
-            self._writeReg(camera.CAM_REG_FORMAT, self.pixel_format) # Set to capture a jpg
-            self._waitIdle()
+            self._write_reg(camera.CAM_REG_FORMAT, self.pixel_format) # Set to capture a jpg
+            self._wait_idle()
         
         # TODO: PROPERTIES TO CONFIGURE THE RESOLUTION
         if new_resolution != self.mode:
-            self._writeReg(camera.CAM_REG_CAPTURE_RESOLUTION, self.mode) # Set to capture a jpg
-            self._waitIdle()
+            self.__write_reg(camera.CAM_REG_CAPTURE_RESOLUTION, self.mode) # Set to capture a jpg
+            self._wait_idle()
         
         # Start capturing the photo
-        self._setCapture()
+        self._set_capture()
         print('capture jpg complete')
     
     # TODO: After reading the camera data clear the FIFO and reset the camera (so that the first time read can be used)
-    def saveJPG(self,filename):
+    def save_JPG(self,filename):
         headflag = 0
         print('starting saving')
-        print('rec len:', self.receivedLength)
+        print('rec len:', self.received_length)
         
-        imageData = 0x00
-        imageDataNext = 0x00
+        image_data = 0x00
+        image_data_next = 0x00
         
-        imageData_int = 0x00
-        imageDataNext_int = 0x00
+        image_data_int = 0x00
+        image_data_next_int = 0x00
         
-        while(self.receivedLength):
+        while(self.received_length):
             
-            imageData = imageDataNext
-            imageData_int = imageDataNext_int
+            image_data = image_data_next
+            image_data_int = image_data_next_int
             
-            imageDataNext = self._readByte()
-            imageDataNext_int = int.from_bytes(imageDataNext, 1) # TODO: CHANGE TO READ n BYTES
+            image_data_next = self._read_byte()
+            image_data_next_int = int.from_bytes(image_data_next, 1) # TODO: CHANGE TO READ n BYTES
             if headflag == 1:
-                jpg_to_write.write(imageDataNext)
+                jpg_to_write.write(image_data_next)
             
-            if (imageData_int == 0xff) and (imageDataNext_int == 0xd8):
+            if (image_data_int == 0xff) and (image_data_next_int == 0xd8):
                 # TODO: Save file to filename
                 print('start of file')
                 headflag = 1
                 jpg_to_write = open(filename,'ab')
-                jpg_to_write.write(imageData)
-                jpg_to_write.write(imageDataNext)
+                jpg_to_write.write(image_data)
+                jpg_to_write.write(image_data_next)
                 
-            if (imageData_int == 0xff) and (imageDataNext_int == 0xd9):
+            if (image_data_int == 0xff) and (image_data_next_int == 0xd9):
                 print('TODO: Save and close file?')
                 headflag = 0
-                jpg_to_write.write(imageDataNext)
+                jpg_to_write.write(image_data_next)
                 jpg_to_write.close()
     
-    def getSensorConfig(self):
-        self.cameraID = self._readReg(camera.CAM_REG_SENSOR_ID);
-        self._waitIdle()
+    def get_sensor_config(self):
+        self.cameraID = self._read_reg(camera.CAM_REG_SENSOR_ID);
+        self._wait_idle()
 #         print(self.cameraID)
         print('TODO DIFFERENTIATE MODELS')
     
     ##################### LOW LEVEL FUNCTIONS #####################
         
-    def _busWrite(self, addr, val):
+    def _bus_write(self, addr, val):
         self.cs.off()
         self.spi_bus.write(bytes([addr]))
         self.spi_bus.write(bytes([val])) # FixMe only works with single bytes
@@ -174,59 +174,59 @@ class camera:
         self.cs.on()
         return data
     
-    def _writeReg(self, addr, val):
-        self._busWrite(addr | 0x80, val)
+    def __write_reg(self, addr, val):
+        self._bus_write(addr | 0x80, val)
 
-    def _readReg(self, addr):
+    def _read_reg(self, addr):
         data = self._busRead(addr & 0x7F)
         return data # TODO: Check that this should return raw bytes or int (int.from_bytes(data, 1))
 
     ##################### Wrapper FUNCTIONS #####################
 
-    def _readByte(self):
+    def _read_byte(self):
         self.cs.off()
         self.spi_bus.write(bytes([camera.SINGLE_FIFO_READ]))
         data = self.spi_bus.read(1)
         data = self.spi_bus.read(1)
         self.cs.on()
-        self.receivedLength -= 1
+        self.received_length -= 1
         return data
     
-    def _waitIdle(self):
-        data = self._readReg(camera.CAM_REG_SENSOR_STATE)
+    def _wait_idle(self):
+        data = self._read_reg(camera.CAM_REG_SENSOR_STATE)
         while ((int.from_bytes(data, 1) & 0x03) == camera.CAM_REG_SENSOR_STATE_IDLE):
-            data = self._readReg(camera.CAM_REG_SENSOR_STATE)
+            data = self._read_reg(camera.CAM_REG_SENSOR_STATE)
             sleep_ms(2)
 
-    def _setCapture(self):
-        self._clearFIFOFlag()
-        self._startCapture()
+    def _set_capture(self):
+        self._clear_fifo_flag()
+        self._start_capture()
         print('set cap a')
-        while (self._getBit(camera.ARDUCHIP_TRIG, camera.CAP_DONE_MASK) == 0):
+        while (self._get_bit(camera.ARDUCHIP_TRIG, camera.CAP_DONE_MASK) == 0):
             sleep_ms(1)
         print('set cap b')
-        self.receivedLength = self._readFIFOLength()
-        self.totalLength = self.receivedLength
-        self.burstFirstFlag = False
+        self.received_length = self._read_fifo_length()
+        self.total_length = self.received_length
+        self.burst_first_flag = False
         ###################################################################### FINISH THIS UP
     
-    def _readFIFOLength(self): # TODO: CONFIRM AND SWAP TO A 3 BYTE READ
-        len1 = int.from_bytes(self._readReg(camera.FIFO_SIZE1),1)
-        len2 = int.from_bytes(self._readReg(camera.FIFO_SIZE2),1)
-        len3 = int.from_bytes(self._readReg(camera.FIFO_SIZE3),1)
+    def _read_fifo_length(self): # TODO: CONFIRM AND SWAP TO A 3 BYTE READ
+        len1 = int.from_bytes(self._read_reg(camera.FIFO_SIZE1),1)
+        len2 = int.from_bytes(self._read_reg(camera.FIFO_SIZE2),1)
+        len3 = int.from_bytes(self._read_reg(camera.FIFO_SIZE3),1)
         print(len1,len2,len3)
         return ((len3 << 16) | (len2 << 8) | len1) & 0xffffff
         
 
-    def _getBit(self, addr, bit):
-        data = self._readReg(addr);
+    def _get_bit(self, addr, bit):
+        data = self._read_reg(addr);
         return int.from_bytes(data, 1) & bit;
 
-    def _clearFIFOFlag(self):
-        self._writeReg(camera.ARDUCHIP_FIFO, camera.FIFO_CLEAR_ID_MASK)
+    def _clear_fifo_flag(self):
+        self.__write_reg(camera.ARDUCHIP_FIFO, camera.FIFO_CLEAR_ID_MASK)
         
-    def _startCapture(self):
-        self._writeReg(camera.ARDUCHIP_FIFO, camera.FIFO_START_MASK)
+    def _start_capture(self):
+        self.__write_reg(camera.ARDUCHIP_FIFO, camera.FIFO_START_MASK)
         
 
 
@@ -237,9 +237,9 @@ cs = Pin(0, Pin.OUT)
 
 cam = camera(spi, cs)
 
-cam.captureJPG()
+cam.capture_JPG()
 
-cam.saveJPG('/please.jpg')
+cam.save_JPG('/image.jpg')
 
 #################################################################################################################################################
 
