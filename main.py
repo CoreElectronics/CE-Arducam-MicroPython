@@ -18,12 +18,10 @@ from utime import sleep_ms
 ############### HIGH LEVEL FUNCTIONS #################
 
 class camera:
-    # Required imports
+    # TODO: Required imports
 
-    
-    
-    
-    # Register definitions
+
+    # TODOD: COMPLETE Register definitions
     
     # For camera Reset
     CAM_REG_SENSOR_RESET = 0x07
@@ -249,15 +247,14 @@ spi = SPI(0,sck=Pin(18), miso=Pin(16), mosi=Pin(19))
 cs = Pin(17, Pin.OUT)
 
 cam = camera(spi, cs)
-sleep_ms(1000)
+sleep_ms(1000) # Delay required for Auto white balance algorithm (AWB), should be run between startup
+# TODO: Seemlessly handle this behind the scenes with a blocking delay (ticks_diff)
 
 cam.captureJPG()
-sleep_ms(1000)
-cam.saveJPG('/please.jpg')
+cam.saveJPG('/image1.jpg')
 
 cam.captureJPG()
-sleep_ms(1000)
-cam.saveJPG('/please2.jpg')
+cam.saveJPG('/image2.jpg')
 
 #################################################################################################################################################
 
