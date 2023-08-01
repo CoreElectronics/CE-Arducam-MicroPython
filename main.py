@@ -1,6 +1,6 @@
 # Arducam port to Pico
 
-from machine import Pin, SPI
+from machine import Pin, SPI, reset
 # Developing on 1.19
 '''
 #################### PINOUT ###############
@@ -18,12 +18,10 @@ from utime import sleep_ms
 ############### HIGH LEVEL FUNCTIONS #################
 
 class camera:
-    # Required imports
+    # TODO: Required imports
 
-    
-    
-    
-    # Register definitions
+
+    # TODOD: COMPLETE Register definitions
     
     # For camera Reset
     CAM_REG_SENSOR_RESET = 0x07
@@ -36,6 +34,13 @@ class camera:
     SENSOR_3MP_1 = 0x82
     SENSOR_5MP_2 = 0x83
     SENSOR_3MP_2 = 0x84
+    
+    # Set mode
+    CAM_REG_COLOR_EFFECT_CONTROL = 0x27
+    SPECIAL_NORMAL = 0x00
+    SPECIAL_BW = 0x04
+    SPECIAL_GREENISH = 0x20
+    
     
     # Device addressing
     CAM_REG_DEBUG_DEVICE_ADDRESS = 0x0A
@@ -53,6 +58,7 @@ class camera:
     RESOLUTION_160X120 = 0x00
     RESOLUTION_320X240 = 0x01
     RESOLUTION_640X480 = 0x02
+    RESOLUTION_1920X1080 = 0x80
     CAM_IMAGE_MODE_FHD = 0x07
 
     # 
@@ -82,8 +88,9 @@ class camera:
         self._write_reg(camera.CAM_REG_DEBUG_DEVICE_ADDRESS, camera.deviceAddress)
         self._wait_idle()
         
-        self.pixel_format = camera.CAM_IMAGE_PIX_FMT_JPG
-        self.mode = camera.RESOLUTION_320X240
+        self.pixel_format = self.CAM_IMAGE_PIX_FMT_JPG
+        self.mode = self.RESOLUTION_1920X1080
+        self.setCameraFilter(self.SPECIAL_NORMAL)
         
         self.received_length = 0
         self.total_length = 0
@@ -99,7 +106,7 @@ class camera:
         new_pixel_format = 0x00
         new_resolution = 0x00
         
-        
+        print('capturing jep')
         # TODO: PROPERTIES TO CONFIGURE THE PIXEL FORMAT
         if new_pixel_format != self.pixel_format:
             self._write_reg(camera.CAM_REG_FORMAT, self.pixel_format) # Set to capture a jpg
@@ -109,6 +116,7 @@ class camera:
         if new_resolution != self.mode:
             self.__write_reg(camera.CAM_REG_CAPTURE_RESOLUTION, self.mode) # Set to capture a jpg
             self._wait_idle()
+
         
         # Start capturing the photo
         self._set_capture()
@@ -185,13 +193,14 @@ class camera:
 
     def _read_byte(self):
         self.cs.off()
-        self.spi_bus.write(bytes([camera.SINGLE_FIFO_READ]))
+        self.spi_bus.write(bytes([self.SINGLE_FIFO_READ]))
         data = self.spi_bus.read(1)
         data = self.spi_bus.read(1)
         self.cs.on()
         self.received_length -= 1
         return data
     
+
     def _wait_idle(self):
         data = self._read_reg(camera.CAM_REG_SENSOR_STATE)
         while ((int.from_bytes(data, 1) & 0x03) == camera.CAM_REG_SENSOR_STATE_IDLE):
@@ -214,7 +223,6 @@ class camera:
         len1 = int.from_bytes(self._read_reg(camera.FIFO_SIZE1),1)
         len2 = int.from_bytes(self._read_reg(camera.FIFO_SIZE2),1)
         len3 = int.from_bytes(self._read_reg(camera.FIFO_SIZE3),1)
-        print(len1,len2,len3)
         return ((len3 << 16) | (len2 << 8) | len1) & 0xffffff
         
 
@@ -228,14 +236,20 @@ class camera:
     def _start_capture(self):
         self.__write_reg(camera.ARDUCHIP_FIFO, camera.FIFO_START_MASK)
         
+    def setCameraFilter(self, effect):
+        self._writeReg(self.CAM_REG_COLOR_EFFECT_CONTROL, effect)
+        self._waitIdle()
 
 
 
 ################################################################## CODE ACTUAL ##################################################################
 spi = SPI(0,sck=Pin(18), miso=Pin(16), mosi=Pin(19))
-cs = Pin(0, Pin.OUT)
+cs = Pin(17, Pin.OUT)
 
 cam = camera(spi, cs)
+sleep_ms(1000) # Delay required for Auto white balance algorithm (AWB), should be run between startup
+# TODO: Seemlessly handle this behind the scenes with a blocking delay (ticks_diff)
+
 
 cam.capture_JPG()
 
