@@ -233,12 +233,12 @@ class camera:
         self.received_length = self._read_fifo_length()
         self.total_length = self.received_length
         self.burst_first_flag = False
-        ###################################################################### FINISH THIS UP
     
     def _read_fifo_length(self): # TODO: CONFIRM AND SWAP TO A 3 BYTE READ
-        len1 = int.from_bytes(self._read_reg(camera.FIFO_SIZE1),1)
-        len2 = int.from_bytes(self._read_reg(camera.FIFO_SIZE2),1)
-        len3 = int.from_bytes(self._read_reg(camera.FIFO_SIZE3),1)
+        len1 = int.from_bytes(self._read_reg(self.FIFO_SIZE1),1)
+        len2 = int.from_bytes(self._read_reg(self.FIFO_SIZE2),1)
+        len3 = int.from_bytes(self._read_reg(self.FIFO_SIZE3),1)
+        print(len1,len2,len3)
         return ((len3 << 16) | (len2 << 8) | len1) & 0xffffff
         
 
