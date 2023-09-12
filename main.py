@@ -1,6 +1,9 @@
 # Arducam port to Pico
 
 from machine import Pin, SPI, reset
+
+
+
 # Developing on 1.19
 '''
 #################### PINOUT ###############
@@ -10,7 +13,7 @@ GND - GND
 SCK - GP18
 MISO - RX - GP16
 MOSI - TX - GP19
-CS - GP1
+CS - GP17
 '''
 
 from utime import sleep_ms
@@ -18,10 +21,9 @@ from utime import sleep_ms
 ############### HIGH LEVEL FUNCTIONS #################
 
 class camera:
-    # TODO: Required imports
-
-
-    # TODOD: COMPLETE Register definitions
+    # Required imports
+    
+    # Register definitions
     
     # For camera Reset
     CAM_REG_SENSOR_RESET = 0x07
@@ -44,7 +46,7 @@ class camera:
     
     # Device addressing
     CAM_REG_DEBUG_DEVICE_ADDRESS = 0x0A
-    DEVICE_ADDRESS = 0x78
+    deviceAddress = 0x78
     
     # For Waiting
     CAM_REG_SENSOR_STATE = 0x44
@@ -52,14 +54,27 @@ class camera:
     
     # Setup for capturing photos
     CAM_REG_FORMAT = 0x20
-    CAM_REG_CAPTURE_RESOLUTION = 0x21
     
     CAM_IMAGE_PIX_FMT_JPG = 0x01
-    RESOLUTION_160X120 = 0x00
-    RESOLUTION_320X240 = 0x01
-    RESOLUTION_640X480 = 0x02
-    RESOLUTION_1920X1080 = 0x80
-    CAM_IMAGE_MODE_FHD = 0x07
+    CAM_IMAGE_PIX_FMT_RGB565 = 0x02
+    CAM_IMAGE_PIX_FMT_YUV = 0x03
+    
+    
+    CAM_REG_CAPTURE_RESOLUTION = 0x21
+    
+    RESOLUTION_160X120 = 0X00
+    RESOLUTION_320X240 = 0X01
+    RESOLUTION_640X480 = 0X02
+    RESOLUTION_800X600 = 0X03
+    RESOLUTION_1280X720 = 0X04
+    RESOLUTION_1280X960 = 0X05
+    RESOLUTION_1600X1200 = 0X06
+    RESOLUTION_1920X1080 = 0X07
+    RESOLUTION_2048X1536 = 0X08
+    RESOLUTION_2592X1944 = 0X09
+    RESOLUTION_96X96 = 0X0a
+    RESOLUTION_128X128 = 0X0b
+    RESOLUTION_320X320 = 0X0c
 
     # 
     ARDUCHIP_FIFO = 0x04
@@ -81,49 +96,50 @@ class camera:
         self.cs = cs
         self.spi_bus = spi_bus
 
-        self._write_reg(camera.CAM_REG_SENSOR_RESET, camera.CAM_SENSOR_RESET_ENABLE) # Reset camera
+        self._write_reg(self.CAM_REG_SENSOR_RESET, self.CAM_SENSOR_RESET_ENABLE) # Reset camera
         self._wait_idle()
         self.get_sensor_config() # Get camera sensor information
         self._wait_idle()
-        self._write_reg(camera.CAM_REG_DEBUG_DEVICE_ADDRESS, camera.deviceAddress)
+        self._write_reg(self.CAM_REG_DEBUG_DEVICE_ADDRESS, self.deviceAddress)
         self._wait_idle()
         
         self.pixel_format = self.CAM_IMAGE_PIX_FMT_JPG
-        self.mode = self.RESOLUTION_1920X1080
-        self.setCameraFilter(self.SPECIAL_NORMAL)
+        self.mode = self.RESOLUTION_640X480
+        self.set_filter(self.SPECIAL_NORMAL)
         
         self.received_length = 0
         self.total_length = 0
         self.burst_first_flag = False
         print('camera init')
     '''
-    Issue warning if the filepath doesnt end in .jpg (Blank) and append
+    Issue warning if the filepath doesnt end in .jpg (Blank) and append	
     Issue error if the filetype is NOT .jpg
     '''
-    def capture_JPG(self):
+    def capture_jpg(self):
         
         # TODO: CLASSES CALL THE FUNCTION TO UPDATE NEW PIXEL FORMAT AND MODE
         new_pixel_format = 0x00
-        new_resolution = 0x00
+        new_resolution = self.RESOLUTION_1920X1080
         
-        print('capturing jep')
+        print('Starting capture JPG')
+        # JPG, bmp ect
         # TODO: PROPERTIES TO CONFIGURE THE PIXEL FORMAT
         if new_pixel_format != self.pixel_format:
-            self._write_reg(camera.CAM_REG_FORMAT, self.pixel_format) # Set to capture a jpg
+            self._write_reg(self.CAM_REG_FORMAT, self.pixel_format) # Set to capture a jpg
             self._wait_idle()
         
-        # TODO: PROPERTIES TO CONFIGURE THE RESOLUTION
+            # TODO: PROPERTIES TO CONFIGURE THE RESOLUTION
         if new_resolution != self.mode:
-            self.__write_reg(camera.CAM_REG_CAPTURE_RESOLUTION, self.mode) # Set to capture a jpg
+            self._write_reg(self.CAM_REG_CAPTURE_RESOLUTION, new_resolution)
+            print('setting res', new_resolution)
             self._wait_idle()
-
         
         # Start capturing the photo
         self._set_capture()
         print('capture jpg complete')
     
     # TODO: After reading the camera data clear the FIFO and reset the camera (so that the first time read can be used)
-    def save_JPG(self,filename):
+    def saveJPG(self,filename):
         headflag = 0
         print('starting saving')
         print('rec len:', self.received_length)
@@ -159,10 +175,12 @@ class camera:
                 jpg_to_write.close()
     
     def get_sensor_config(self):
-        self.cameraID = self._read_reg(camera.CAM_REG_SENSOR_ID);
+        camera_id = self._read_reg(self.CAM_REG_SENSOR_ID);
         self._wait_idle()
-#         print(self.cameraID)
-        print('TODO DIFFERENTIATE MODELS')
+        if (int.from_bytes(camera_id, 1) == self.SENSOR_3MP_1) or (int.from_bytes(camera_id, 1) == self.SENSOR_3MP_2):
+            self.camera_idx = '3MP'
+        if (int.from_bytes(camera_id, 1) == self.SENSOR_5MP_1) or (int.from_bytes(camera_id, 1) == self.SENSOR_5MP_2):
+            self.camera_idx = '5MP'
     
     ##################### LOW LEVEL FUNCTIONS #####################
         
@@ -174,7 +192,7 @@ class camera:
         sleep_ms(1) # From the Arducam Library
         return 1
     
-    def _busRead(self, addr):
+    def _bus_read(self, addr):
         self.cs.off()
         self.spi_bus.write(bytes([addr]))
         data = self.spi_bus.read(1) # Only read second set of data
@@ -182,11 +200,11 @@ class camera:
         self.cs.on()
         return data
     
-    def __write_reg(self, addr, val):
+    def _write_reg(self, addr, val):
         self._bus_write(addr | 0x80, val)
 
     def _read_reg(self, addr):
-        data = self._busRead(addr & 0x7F)
+        data = self._bus_read(addr & 0x7F)
         return data # TODO: Check that this should return raw bytes or int (int.from_bytes(data, 1))
 
     ##################### Wrapper FUNCTIONS #####################
@@ -200,20 +218,18 @@ class camera:
         self.received_length -= 1
         return data
     
-
     def _wait_idle(self):
-        data = self._read_reg(camera.CAM_REG_SENSOR_STATE)
-        while ((int.from_bytes(data, 1) & 0x03) == camera.CAM_REG_SENSOR_STATE_IDLE):
-            data = self._read_reg(camera.CAM_REG_SENSOR_STATE)
+        data = self._read_reg(self.CAM_REG_SENSOR_STATE)
+        while ((int.from_bytes(data, 1) & 0x03) == self.CAM_REG_SENSOR_STATE_IDLE):
+            data = self._read_reg(self.CAM_REG_SENSOR_STATE)
             sleep_ms(2)
 
     def _set_capture(self):
         self._clear_fifo_flag()
+        self._wait_idle()
         self._start_capture()
-        print('set cap a')
-        while (self._get_bit(camera.ARDUCHIP_TRIG, camera.CAP_DONE_MASK) == 0):
+        while (self._get_bit(self.ARDUCHIP_TRIG, self.CAP_DONE_MASK) == 0):
             sleep_ms(1)
-        print('set cap b')
         self.received_length = self._read_fifo_length()
         self.total_length = self.received_length
         self.burst_first_flag = False
@@ -231,14 +247,16 @@ class camera:
         return int.from_bytes(data, 1) & bit;
 
     def _clear_fifo_flag(self):
-        self.__write_reg(camera.ARDUCHIP_FIFO, camera.FIFO_CLEAR_ID_MASK)
+        self._write_reg(self.ARDUCHIP_FIFO, self.FIFO_CLEAR_ID_MASK)
         
     def _start_capture(self):
-        self.__write_reg(camera.ARDUCHIP_FIFO, camera.FIFO_START_MASK)
+        self._write_reg(self.ARDUCHIP_FIFO, self.FIFO_START_MASK)
         
-    def setCameraFilter(self, effect):
-        self._writeReg(self.CAM_REG_COLOR_EFFECT_CONTROL, effect)
-        self._waitIdle()
+    def set_filter(self, effect):
+        self._write_reg(self.CAM_REG_COLOR_EFFECT_CONTROL, effect)
+        self._wait_idle()
+    
+
 
 
 
@@ -246,14 +264,25 @@ class camera:
 spi = SPI(0,sck=Pin(18), miso=Pin(16), mosi=Pin(19))
 cs = Pin(17, Pin.OUT)
 
+# button = Pin(15, Pin.IN,Pin.PULL_UP)
+onboard_LED = Pin(25, Pin.OUT)
+
 cam = camera(spi, cs)
-sleep_ms(1000) # Delay required for Auto white balance algorithm (AWB), should be run between startup
-# TODO: Seemlessly handle this behind the scenes with a blocking delay (ticks_diff)
+sleep_ms(2000)
+photo_counter = 0
 
+print('starting loop')
 
-cam.capture_JPG()
+# while True:
+#     if button.value() == False:
+onboard_LED.on()
+cam.capture_jpg()
+print('took photo')
+sleep_ms(2000)
+cam.saveJPG('/arducam-photo_low_res.jpg')
+# photo_counter += 1
+onboard_LED.off()
 
-cam.save_JPG('/image.jpg')
 
 #################################################################################################################################################
 
@@ -272,7 +301,7 @@ cam.save_JPG('/image.jpg')
 
 
 # Take photo
-# cam.captureJPG("/path/to/image.jpg")
+# cam.capture_jpg("/path/to/image.jpg")
 '''
 Append filename with warning if '.jpg' is not included
 '''
