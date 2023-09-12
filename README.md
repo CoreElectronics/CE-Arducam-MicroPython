@@ -16,6 +16,9 @@ Project Status:
 - [ ] Burst read
 - [ ] Confirm a micro SD card can use the same SPI bus (Micropython compatibility)
 - [ ] Confirm working with latest Micropython version)
+- [ ] Filemanager also handles subfolders for images
+- [ ] Confirm that different file formats output correctly (RGB=BMP, YGV?)
+- [ ] Confirm that pixel RGB values can be extrapolated from BMP format for machine learning applications
 
 # License
 This project is open source - please review the LICENSE.md file for further licensing information.
