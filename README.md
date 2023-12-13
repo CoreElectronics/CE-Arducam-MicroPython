@@ -12,6 +12,7 @@ Project Status:
 - [ ] Confirmed working on 3MP Camera (ISSUE: Photos have a green hue, camera_idx identifies the two versions)
 - [x] Can set resolution
 - [ ] Can set remaining filters and modes
+- [ ] Able to set multiple adjustments at the same time ([see issue#3](https://github.com/CoreElectronics/CE-Arducam-MicroPython/issues))
 - [ ] Class moved to separate file
 - [ ] Burst read
 - [ ] Confirm a micro SD card can use the same SPI bus (Micropython compatibility)
