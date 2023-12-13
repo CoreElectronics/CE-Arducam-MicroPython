@@ -1,6 +1,5 @@
 # Arducam port to Pico
 
-
 from machine import Pin, SPI, reset
 
 
@@ -11,12 +10,11 @@ from machine import Pin, SPI, reset
 Camera pin - Pico Pin
 VCC - 3V3
 GND - GND
-SCK - GP18 - white
-MISO - RX - GP16 - brown
-MOSI - TX - GP19 - yellow
-CS - GP17 - orange
+SCK - GP18
+MISO - RX - GP16
+MOSI - TX - GP19
+CS - GP17
 '''
-
 
 from utime import sleep_ms
 import utime
@@ -24,14 +22,19 @@ import utime
 import uos
 import ujson
 
-
-
-
 '''
 Start this alongside the camera module to save photos in a folder with a filename i.e. image-<counter>.jpg
 * appends '_' after a word, the next number and the file format
 '''
 def filemanager(self,filename):
+    
+    '''
+    image_<count>.jpg=3
+    bird_<count>=3
+    =
+    {'image': 3,
+     'bird': 3}
+    '''
     count = 0
     files = {}
     # Ensure file is present
@@ -49,25 +52,21 @@ def filemanager(self,filename):
     # Save the updated list back to the storage
     with open(self.FILE_MANAGER_LOG_NAME, 'w') as f:
         f.write(ujson.dumps(files))
-
+        
     new_filename = f"{filename}_{count}.jpg" if count > 0 else f"{filename}.jpg"
     return new_filename
-
-
-
-############### HIGH LEVEL FUNCTIONS #################
 
 class Camera:
     # Required imports
     
-    # Register definitions
+    ### Register definitions
 
 
-    # For camera Reset
+    ## For camera Reset
     CAM_REG_SENSOR_RESET = 0x07
     CAM_SENSOR_RESET_ENABLE = 0x40
     
-    # For get_sensor_config
+    ## For get_sensor_config
     CAM_REG_SENSOR_ID = 0x40
     
     SENSOR_5MP_1 = 0x81
@@ -206,12 +205,8 @@ class Camera:
         self._write_reg(self.CAM_REG_DEBUG_DEVICE_ADDRESS, self.deviceAddress)
         self._wait_idle()
         
-        print('please')
-        self.old_pixel_format = self.CAM_IMAGE_PIX_FMT_JPG
         self.pixel_format = self.CAM_IMAGE_PIX_FMT_JPG
-        
-        self.old_resolution = self.RESOLUTION_640X480
-        self.resolution = self.RESOLUTION_640X480 # Arducam Arduino Library refers to this as 'mode'
+        self.mode = self.RESOLUTION_640X480
         self.set_filter(self.SPECIAL_NORMAL)
         
         self.received_length = 0
@@ -232,22 +227,20 @@ class Camera:
         
         
             # TODO: CLASSES CALL THE FUNCTION TO UPDATE NEW PIXEL FORMAT AND MODE
-            self.pixel_format = 0x01
-            self.resolution = self.RESOLUTION_320X240
+            new_pixel_format = 0x00
+            new_resolution = self.RESOLUTION_320X240
             
             print('Starting capture JPG')
             # JPG, bmp ect
             # TODO: PROPERTIES TO CONFIGURE THE PIXEL FORMAT
-            if self.old_pixel_format != self.pixel_format:
-                self.old_pixel_format = self.pixel_format
+            if new_pixel_format != self.pixel_format:
                 self._write_reg(self.CAM_REG_FORMAT, self.pixel_format) # Set to capture a jpg
                 self._wait_idle()
             
                 # TODO: PROPERTIES TO CONFIGURE THE RESOLUTION
-            if self.old_resolution != self.resolution:
-                self.old_resolution = self.resolution
-                self._write_reg(self.CAM_REG_CAPTURE_RESOLUTION, self.resolution)
-                print('setting res', self.resolution)
+            if new_resolution != self.mode:
+                self._write_reg(self.CAM_REG_CAPTURE_RESOLUTION, new_resolution)
+                print('setting res', new_resolution)
                 self._wait_idle()
             
             # Start capturing the photo
@@ -272,8 +265,8 @@ class Camera:
             
             image_data = image_data_next
             image_data_int = image_data_next_int
-
-            image_data_next = self._read_byte() 
+            
+            image_data_next = self._read_byte()
             image_data_next_int = int.from_bytes(image_data_next, 1) # TODO: CHANGE TO READ n BYTES
             if headflag == 1:
                 jpg_to_write.write(image_data_next)
@@ -291,19 +284,8 @@ class Camera:
                 headflag = 0
                 jpg_to_write.write(image_data_next)
                 jpg_to_write.close()
-
-    '''
-        Set using self.RESOLUTION_<resolution>
-    '''
-    def set_resolution(self, new_resolution):
-        self.resolution = new_resolution
-
-    def set_pixel_format(self, new_pixel_format):
-        self.pixel_format = new_pixel_format
-
-
-
-
+    
+    
 ########### ACCSESSORY FUNCTIONS ###########
 
     # TODO: Complete for other camera settings
@@ -413,29 +395,27 @@ class Camera:
         return int.from_bytes(data, 1) & bit;
 
 
-
-
 ################################################################## CODE ACTUAL ##################################################################
 spi = SPI(0,sck=Pin(18), miso=Pin(16), mosi=Pin(19))
 cs = Pin(17, Pin.OUT)
 
-
+# button = Pin(15, Pin.IN,Pin.PULL_UP)
 onboard_LED = Pin(25, Pin.OUT)
 
 cam = Camera(spi, cs)
 
 sleep_ms(1000)
 
-print('starting loop')
 onboard_LED.on()
-#cam.set_white_balance('office')
 cam.capture_jpg()
-print('took photo')
-sleep_ms(1000)
+sleep_ms(200)
 cam.saveJPG('image.jpg')
 onboard_LED.off()
 
 
+
+# photo_counter += 1
+#nboard_LED.off()
 
 
 #################################################################################################################################################
