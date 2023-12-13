@@ -10,10 +10,10 @@ from machine import Pin, SPI, reset
 Camera pin - Pico Pin
 VCC - 3V3
 GND - GND
-SCK - GP18
-MISO - RX - GP16
-MOSI - TX - GP19
-CS - GP17
+SCK - GP18 - white
+MISO - RX - GP16 - brown
+MOSI - TX - GP19 - yellow
+CS - GP17 - orange
 '''
 
 from utime import sleep_ms
@@ -205,8 +205,16 @@ class Camera:
         self._write_reg(self.CAM_REG_DEBUG_DEVICE_ADDRESS, self.deviceAddress)
         self._wait_idle()
         
+        self.run_start_up_config = True
+
         self.pixel_format = self.CAM_IMAGE_PIX_FMT_JPG
-        self.mode = self.RESOLUTION_640X480
+        self.old_pixel_format = self.pixel_format
+        
+        
+        self.resolution = self.RESOLUTION_640X480 # ArduCam driver defines this as mode
+        self.old_resolution = self.resolution
+        
+        
         self.set_filter(self.SPECIAL_NORMAL)
         
         self.received_length = 0
@@ -224,24 +232,23 @@ class Camera:
     def capture_jpg(self):
         
         if utime.ticks_diff(utime.ticks_ms(), self.start_time) >= self.WHITE_BALANCE_WAIT_TIME_MS:
-        
-        
-            # TODO: CLASSES CALL THE FUNCTION TO UPDATE NEW PIXEL FORMAT AND MODE
-            new_pixel_format = 0x00
-            new_resolution = self.RESOLUTION_320X240
-            
+
             print('Starting capture JPG')
             # JPG, bmp ect
             # TODO: PROPERTIES TO CONFIGURE THE PIXEL FORMAT
-            if new_pixel_format != self.pixel_format:
+            if (self.old_pixel_format != self.pixel_format) or self.run_start_up_config:
+                self.old_pixel_format = self.pixel_format
                 self._write_reg(self.CAM_REG_FORMAT, self.pixel_format) # Set to capture a jpg
                 self._wait_idle()
-            
+            print('old',self.old_resolution,'new',self.resolution)
                 # TODO: PROPERTIES TO CONFIGURE THE RESOLUTION
-            if new_resolution != self.mode:
-                self._write_reg(self.CAM_REG_CAPTURE_RESOLUTION, new_resolution)
-                print('setting res', new_resolution)
+            if (self.old_resolution != self.resolution) or self.run_start_up_config:
+                self.old_resolution = self.resolution
+                self._write_reg(self.CAM_REG_CAPTURE_RESOLUTION, self.resolution)
+                print('setting res', self.resolution)
                 self._wait_idle()
+            
+            self.run_start_up_config = False
             
             # Start capturing the photo
             self._set_capture()
@@ -284,8 +291,17 @@ class Camera:
                 headflag = 0
                 jpg_to_write.write(image_data_next)
                 jpg_to_write.close()
-    
-    
+
+    '''
+    Both functions below should be set using the 'Camera.RESOLUTION_<xxx>X<xxx>' arguments
+    TODO: seems clunky, find a better way to handle this
+    '''
+    def set_resolution(self, new_resolution):
+        self.resolution = new_resolution
+
+    def set_pixel_format(self, new_pixel_format):
+        self.pixel_format = new_pixel_format
+
 ########### ACCSESSORY FUNCTIONS ###########
 
     # TODO: Complete for other camera settings
@@ -351,7 +367,10 @@ class Camera:
 
 
 ##################### INTERNAL FUNCTIONS - LOW LEVEL #####################
-        
+
+    def _read_buffer(self):
+        print('COMPLETE')
+
     def _bus_write(self, addr, val):
         self.cs.off()
         self.spi_bus.write(bytes([addr]))
@@ -403,10 +422,19 @@ cs = Pin(17, Pin.OUT)
 onboard_LED = Pin(25, Pin.OUT)
 
 cam = Camera(spi, cs)
+'''
+RESOLUTION_160X120 = 0X00
+    RESOLUTION_320X240 = 0X01
+    RESOLUTION_640X480 = 0X02
+    RESOLUTION_1280X720 = 0X03
+    '''
+
 
 sleep_ms(1000)
 
 onboard_LED.on()
+cam.set_resolution(cam.RESOLUTION_1280X720)
+
 cam.capture_jpg()
 sleep_ms(200)
 cam.saveJPG('image.jpg')
