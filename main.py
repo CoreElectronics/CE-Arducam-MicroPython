@@ -1,5 +1,6 @@
 # Arducam port to Pico
 
+
 from machine import Pin, SPI, reset
 
 
@@ -10,11 +11,12 @@ from machine import Pin, SPI, reset
 Camera pin - Pico Pin
 VCC - 3V3
 GND - GND
-SCK - GP18
-MISO - RX - GP16
-MOSI - TX - GP19
-CS - GP17
+SCK - GP18 - white
+MISO - RX - GP16 - brown
+MOSI - TX - GP19 - yellow
+CS - GP17 - orange
 '''
+
 
 from utime import sleep_ms
 import utime
@@ -22,13 +24,45 @@ import utime
 import uos
 import ujson
 
+
+
+
+'''
+Start this alongside the camera module to save photos in a folder with a filename i.e. image-<counter>.jpg
+* appends '_' after a word, the next number and the file format
+'''
+def filemanager(self,filename):
+    count = 0
+    files = {}
+    # Ensure file is present
+    if self.FILE_MANAGER_LOG_NAME not in uos.listdir():
+        with open(self.FILE_MANAGER_LOG_NAME, 'w') as f:
+            f.write(ujson.dumps({}))
+        
+    # Check if the filename already exists in the storage
+    with open(self.FILE_MANAGER_LOG_NAME, 'r') as f:
+        files = ujson.loads(f.read())
+        if filename in files:
+            count = files[filename] + 1
+        files[filename] = count
+        
+    # Save the updated list back to the storage
+    with open(self.FILE_MANAGER_LOG_NAME, 'w') as f:
+        f.write(ujson.dumps(files))
+
+    new_filename = f"{filename}_{count}.jpg" if count > 0 else f"{filename}.jpg"
+    return new_filename
+
+
+
 ############### HIGH LEVEL FUNCTIONS #################
 
 class camera:
     # Required imports
     
     # Register definitions
-    
+
+
     # For camera Reset
     CAM_REG_SENSOR_RESET = 0x07
     CAM_SENSOR_RESET_ENABLE = 0x40
@@ -41,16 +75,22 @@ class camera:
     SENSOR_5MP_2 = 0x83
     SENSOR_3MP_2 = 0x84
     
-    # Set mode
+    ## Camera effect control
+    
+    # Set Colour Effect
     CAM_REG_COLOR_EFFECT_CONTROL = 0x27
     
     SPECIAL_NORMAL = 0x00
     SPECIAL_BW = 0x04
     SPECIAL_GREENISH = 0x20
-    
+    # TODO Complete
 
-    
     # Set Brightness
+    CAM_REG_BRIGHTNESS_CONTROL = 0X22
+    
+    # TODO
+    
+    
 
     # Set Contrast
     CAM_REG_CONTRAST_CONTROL = 0X23
@@ -65,8 +105,13 @@ class camera:
     
     
     # Set Saturation
+    CAM_REG_SATURATION_CONTROL = 0X24
     
+    
+
     # Set Exposure Value
+    # TODO: INSPECT LIBRARY, DIFFERENT TO OTHER SETTING REGISTERS
+    
     
     # Set Whitebalance
     CAM_REG_WB_MODE_CONTROL = 0X26
@@ -76,22 +121,15 @@ class camera:
     WB_MODE_OFFICE = 2
     WB_MODE_CLOUDY = 3
     WB_MODE_HOME = 4
-    
-    
-    
-        
-        
-        
-    
-    # Set Colour Effect
-    
+
     # Set Sharpness
+    CAM_REG_SHARPNESS_CONTROL = 0X28
     
     # Set Autofocus
+    CAM_REG_AUTO_FOCUS_CONTROL = 0X29
     
     # Set Image quality
-    
-    # 
+    CAM_REG_IMAGE_QUALITY = 0x2A
     
     
     # Device addressing
@@ -145,22 +183,33 @@ class camera:
     
     FILE_MANAGER_LOG_NAME = 'filemanager.log'
     
-    ##################### Callable FUNCTIONS #####################
-        
-    def __init__(self, spi_bus, cs, filemanager=True):
+    
+
+# User callable functions
+## Main functions
+## Setting functions
+# Internal functions
+## High level internal functions
+## Low level
+
+##################### Callable FUNCTIONS #####################
+
+########### CORE PHOTO FUNCTIONS ###########
+    def __init__(self, spi_bus, cs):
         self.cs = cs
         self.spi_bus = spi_bus
-        self.filemanager_enabled = filemanager
 
         self._write_reg(self.CAM_REG_SENSOR_RESET, self.CAM_SENSOR_RESET_ENABLE) # Reset camera
         self._wait_idle()
-        self.get_sensor_config() # Get camera sensor information
+        self._get_sensor_config() # Get camera sensor information
         self._wait_idle()
         self._write_reg(self.CAM_REG_DEBUG_DEVICE_ADDRESS, self.deviceAddress)
         self._wait_idle()
         
+        self.old_pixel_format = self.CAM_IMAGE_PIX_FMT_JPG
         self.pixel_format = self.CAM_IMAGE_PIX_FMT_JPG
-        self.mode = self.RESOLUTION_640X480
+        self.old_resolution = = self.RESOLUTION_640X480
+        self.resolution = self.RESOLUTION_640X480 # Arducam Arduino Library refers to this as 'mode'
         self.set_filter(self.SPECIAL_NORMAL)
         
         self.received_length = 0
@@ -187,12 +236,14 @@ class camera:
             print('Starting capture JPG')
             # JPG, bmp ect
             # TODO: PROPERTIES TO CONFIGURE THE PIXEL FORMAT
-            if new_pixel_format != self.pixel_format:
+            if self.old_pixel_format != self.pixel_format:
+                self.old_pixel_format = self.pixel_format
                 self._write_reg(self.CAM_REG_FORMAT, self.pixel_format) # Set to capture a jpg
                 self._wait_idle()
             
                 # TODO: PROPERTIES TO CONFIGURE THE RESOLUTION
-            if new_resolution != self.mode:
+            if self.old_resolution != self.resolution:
+                self.old_resolution = self.resolution
                 self._write_reg(self.CAM_REG_CAPTURE_RESOLUTION, new_resolution)
                 print('setting res', new_resolution)
                 self._wait_idle()
@@ -214,15 +265,13 @@ class camera:
         
         image_data_int = 0x00
         image_data_next_int = 0x00
-        if self.filemanager_enabled:
-            filename = self.filemanager(filename)
         
         while(self.received_length):
             
             image_data = image_data_next
             image_data_int = image_data_next_int
-            
-            image_data_next = self._read_byte()
+
+            image_data_next = self._read_byte() 
             image_data_next_int = int.from_bytes(image_data_next, 1) # TODO: CHANGE TO READ n BYTES
             if headflag == 1:
                 jpg_to_write.write(image_data_next)
@@ -240,119 +289,26 @@ class camera:
                 headflag = 0
                 jpg_to_write.write(image_data_next)
                 jpg_to_write.close()
-    
+
     '''
-    Start this alongside the camera module to save photos in a folder with a filename i.e. image-<counter>.jpg
-    * appends '_' after a word, the next number and the file format
+        Set using self.RESOLUTION_<resolution>
     '''
-    def filemanager(self,filename):
-        
-        '''
-        image_<count>.jpg=3
-        bird_<count>=3
-        =
-        {'image': 3,
-         'bird': 3}
-        '''
-        count = 0
-        files = {}
-        # Ensure file is present
-        if self.FILE_MANAGER_LOG_NAME not in uos.listdir():
-            with open(self.FILE_MANAGER_LOG_NAME, 'w') as f:
-                f.write(ujson.dumps({}))
-            
-        # Check if the filename already exists in the storage
-        with open(self.FILE_MANAGER_LOG_NAME, 'r') as f:
-            files = ujson.loads(f.read())
-            if filename in files:
-                count = files[filename] + 1
-            files[filename] = count
-            
-        # Save the updated list back to the storage
-        with open(self.FILE_MANAGER_LOG_NAME, 'w') as f:
-            f.write(ujson.dumps(files))
-            
-        new_filename = f"{filename}_{count}.jpg" if count > 0 else f"{filename}.jpg"
-        return new_filename
+    def set_resolution(self, new_resolution):
+        self.resolution = new_resolution
 
-    def get_sensor_config(self):
-        camera_id = self._read_reg(self.CAM_REG_SENSOR_ID);
-        self._wait_idle()
-        if (int.from_bytes(camera_id, 1) == self.SENSOR_3MP_1) or (int.from_bytes(camera_id, 1) == self.SENSOR_3MP_2):
-            self.camera_idx = '3MP'
-        if (int.from_bytes(camera_id, 1) == self.SENSOR_5MP_1) or (int.from_bytes(camera_id, 1) == self.SENSOR_5MP_2):
-            self.camera_idx = '5MP'
-    
-    ##################### LOW LEVEL FUNCTIONS #####################
-        
-    def _bus_write(self, addr, val):
-        self.cs.off()
-        self.spi_bus.write(bytes([addr]))
-        self.spi_bus.write(bytes([val])) # FixMe only works with single bytes
-        self.cs.on()
-        sleep_ms(1) # From the Arducam Library
-        return 1
-    
-    def _bus_read(self, addr):
-        self.cs.off()
-        self.spi_bus.write(bytes([addr]))
-        data = self.spi_bus.read(1) # Only read second set of data
-        data = self.spi_bus.read(1)
-        self.cs.on()
-        return data
-    
-    def _write_reg(self, addr, val):
-        self._bus_write(addr | 0x80, val)
+    def set_pixel_format(self, new_pixel_format):
+        self.pixel_format = new_pixel_format
 
-    def _read_reg(self, addr):
-        data = self._bus_read(addr & 0x7F)
-        return data # TODO: Check that this should return raw bytes or int (int.from_bytes(data, 1))
 
-    ##################### Wrapper FUNCTIONS #####################
 
-    def _read_byte(self):
-        self.cs.off()
-        self.spi_bus.write(bytes([self.SINGLE_FIFO_READ]))
-        data = self.spi_bus.read(1)
-        data = self.spi_bus.read(1)
-        self.cs.on()
-        self.received_length -= 1
-        return data
-    
-    def _wait_idle(self):
-        data = self._read_reg(self.CAM_REG_SENSOR_STATE)
-        while ((int.from_bytes(data, 1) & 0x03) == self.CAM_REG_SENSOR_STATE_IDLE):
-            data = self._read_reg(self.CAM_REG_SENSOR_STATE)
-            sleep_ms(2)
 
-    def _set_capture(self):
-        self._clear_fifo_flag()
-        self._wait_idle()
-        self._start_capture()
-        while (self._get_bit(self.ARDUCHIP_TRIG, self.CAP_DONE_MASK) == 0):
-            sleep_ms(1)
-        self.received_length = self._read_fifo_length()
-        self.total_length = self.received_length
-        self.burst_first_flag = False
-    
-    def _read_fifo_length(self): # TODO: CONFIRM AND SWAP TO A 3 BYTE READ
-        len1 = int.from_bytes(self._read_reg(self.FIFO_SIZE1),1)
-        len2 = int.from_bytes(self._read_reg(self.FIFO_SIZE2),1)
-        len3 = int.from_bytes(self._read_reg(self.FIFO_SIZE3),1)
-        print(len1,len2,len3)
-        return ((len3 << 16) | (len2 << 8) | len1) & 0xffffff
-        
+########### ACCSESSORY FUNCTIONS ###########
 
-    def _get_bit(self, addr, bit):
-        data = self._read_reg(addr);
-        return int.from_bytes(data, 1) & bit;
+    # TODO: Complete for other camera settings
+    # Make these setters - https://github.com/CoreElectronics/CE-PiicoDev-Accelerometer-LIS3DH-MicroPython-Module/blob/abcb4337020434af010f2325b061e694b808316d/PiicoDev_LIS3DH.py#L118C1-L118C1
+    def set_brightness_level(self):
+        print('TODO: COMPLETE THIS FUNCTION')
 
-    def _clear_fifo_flag(self):
-        self._write_reg(self.ARDUCHIP_FIFO, self.FIFO_CLEAR_ID_MASK)
-        
-    def _start_capture(self):
-        self._write_reg(self.ARDUCHIP_FIFO, self.FIFO_START_MASK)
-        
     def set_filter(self, effect):
         self._write_reg(self.CAM_REG_COLOR_EFFECT_CONTROL, effect)
         self._wait_idle()
@@ -370,11 +326,90 @@ class camera:
             register_value = self.WB_MODE_HOME
         elif self.camera_idx == '3MP':
             print('TODO UPDATE: For best results set a White Balance setting')
-        
+
         self.white_balance_mode = register_value
         self._write_reg(self.CAM_REG_WB_MODE_CONTROL, register_value)
         self._wait_idle()
+
+##################### INTERNAL FUNCTIONS - HIGH LEVEL #####################
+
+########### CORE PHOTO FUNCTIONS ###########
+    def _clear_fifo_flag(self):
+        self._write_reg(self.ARDUCHIP_FIFO, self.FIFO_CLEAR_ID_MASK)
+
+    def _start_capture(self):
+        self._write_reg(self.ARDUCHIP_FIFO, self.FIFO_START_MASK)
+
+    def _set_capture(self):
+        self._clear_fifo_flag()
+        self._wait_idle()
+        self._start_capture()
+        while (self._get_bit(self.ARDUCHIP_TRIG, self.CAP_DONE_MASK) == 0):
+            sleep_ms(1)
+        self.received_length = self._read_fifo_length()
+        self.total_length = self.received_length
+        self.burst_first_flag = False
+    
+    def _read_fifo_length(self): # TODO: CONFIRM AND SWAP TO A 3 BYTE READ
+        len1 = int.from_bytes(self._read_reg(self.FIFO_SIZE1),1)
+        len2 = int.from_bytes(self._read_reg(self.FIFO_SIZE2),1)
+        len3 = int.from_bytes(self._read_reg(self.FIFO_SIZE3),1)
+        print(len1,len2,len3)
+        return ((len3 << 16) | (len2 << 8) | len1) & 0xffffff
+
+    def _get_sensor_config(self):
+        camera_id = self._read_reg(self.CAM_REG_SENSOR_ID);
+        self._wait_idle()
+        if (int.from_bytes(camera_id, 1) == self.SENSOR_3MP_1) or (int.from_bytes(camera_id, 1) == self.SENSOR_3MP_2):
+            self.camera_idx = '3MP'
+        if (int.from_bytes(camera_id, 1) == self.SENSOR_5MP_1) or (int.from_bytes(camera_id, 1) == self.SENSOR_5MP_2):
+            self.camera_idx = '5MP'
+
+
+##################### INTERNAL FUNCTIONS - LOW LEVEL #####################
         
+    def _bus_write(self, addr, val):
+        self.cs.off()
+        self.spi_bus.write(bytes([addr]))
+        self.spi_bus.write(bytes([val])) # FixMe only works with single bytes
+        self.cs.on()
+        sleep_ms(1) # From the Arducam Library
+        return 1
+    
+    def _bus_read(self, addr):
+        self.cs.off()
+        self.spi_bus.write(bytes([addr]))
+        data = self.spi_bus.read(1) # Only read second set of data
+        data = self.spi_bus.read(1)
+        self.cs.on()
+        return data
+
+    def _write_reg(self, addr, val):
+        self._bus_write(addr | 0x80, val)
+
+    def _read_reg(self, addr):
+        data = self._bus_read(addr & 0x7F)
+        return data # TODO: Check that this should return raw bytes or int (int.from_bytes(data, 1))
+
+    def _read_byte(self):
+        self.cs.off()
+        self.spi_bus.write(bytes([self.SINGLE_FIFO_READ]))
+        data = self.spi_bus.read(1)
+        data = self.spi_bus.read(1)
+        self.cs.on()
+        self.received_length -= 1
+        return data
+    
+    def _wait_idle(self):
+        data = self._read_reg(self.CAM_REG_SENSOR_STATE)
+        while ((int.from_bytes(data, 1) & 0x03) == self.CAM_REG_SENSOR_STATE_IDLE):
+            data = self._read_reg(self.CAM_REG_SENSOR_STATE)
+            sleep_ms(2)
+
+    def _get_bit(self, addr, bit):
+        data = self._read_reg(addr);
+        return int.from_bytes(data, 1) & bit;
+
 
 
 
@@ -382,31 +417,23 @@ class camera:
 spi = SPI(0,sck=Pin(18), miso=Pin(16), mosi=Pin(19))
 cs = Pin(17, Pin.OUT)
 
-# button = Pin(15, Pin.IN,Pin.PULL_UP)
+
 onboard_LED = Pin(25, Pin.OUT)
 
 cam = camera(spi, cs)
 
 sleep_ms(1000)
 
-# print('starting loop')
-# onboard_LED.on()
-# #cam.set_white_balance('office')
-# cam.capture_jpg()
-# print('took photo')
-# sleep_ms(1000)
-# cam.saveJPG('image')
+print('starting loop')
+onboard_LED.on()
+#cam.set_white_balance('office')
+cam.capture_jpg()
+print('took photo')
+sleep_ms(1000)
+cam.saveJPG('image.jpg')
+onboard_LED.off()
 
-for i in range(2):
-    onboard_LED.on()
-    cam.capture_jpg()
-    sleep_ms(200)
-    cam.saveJPG('image')
-    onboard_LED.off()
-    sleep_ms(2000)
 
-# photo_counter += 1
-#nboard_LED.off()
 
 
 #################################################################################################################################################
