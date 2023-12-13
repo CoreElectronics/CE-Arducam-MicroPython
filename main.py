@@ -57,7 +57,7 @@ def filemanager(self,filename):
 
 ############### HIGH LEVEL FUNCTIONS #################
 
-class camera:
+class Camera:
     # Required imports
     
     # Register definitions
@@ -206,9 +206,11 @@ class camera:
         self._write_reg(self.CAM_REG_DEBUG_DEVICE_ADDRESS, self.deviceAddress)
         self._wait_idle()
         
+        print('please')
         self.old_pixel_format = self.CAM_IMAGE_PIX_FMT_JPG
         self.pixel_format = self.CAM_IMAGE_PIX_FMT_JPG
-        self.old_resolution = = self.RESOLUTION_640X480
+        
+        self.old_resolution = self.RESOLUTION_640X480
         self.resolution = self.RESOLUTION_640X480 # Arducam Arduino Library refers to this as 'mode'
         self.set_filter(self.SPECIAL_NORMAL)
         
@@ -230,8 +232,8 @@ class camera:
         
         
             # TODO: CLASSES CALL THE FUNCTION TO UPDATE NEW PIXEL FORMAT AND MODE
-            new_pixel_format = 0x00
-            new_resolution = self.RESOLUTION_320X240
+            self.pixel_format = 0x01
+            self.resolution = self.RESOLUTION_320X240
             
             print('Starting capture JPG')
             # JPG, bmp ect
@@ -244,8 +246,8 @@ class camera:
                 # TODO: PROPERTIES TO CONFIGURE THE RESOLUTION
             if self.old_resolution != self.resolution:
                 self.old_resolution = self.resolution
-                self._write_reg(self.CAM_REG_CAPTURE_RESOLUTION, new_resolution)
-                print('setting res', new_resolution)
+                self._write_reg(self.CAM_REG_CAPTURE_RESOLUTION, self.resolution)
+                print('setting res', self.resolution)
                 self._wait_idle()
             
             # Start capturing the photo
@@ -420,7 +422,7 @@ cs = Pin(17, Pin.OUT)
 
 onboard_LED = Pin(25, Pin.OUT)
 
-cam = camera(spi, cs)
+cam = Camera(spi, cs)
 
 sleep_ms(1000)
 
