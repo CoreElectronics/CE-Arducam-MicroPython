@@ -9,13 +9,13 @@ This project is featured in the 27-July-2023 episode of [The Factory](https://yo
 </a>
 
 Project Status:
-- [ ] Confirmed working on 3MP Camera (ISSUE: Photos have a green hue, camera_idx identifies the two versions)
+- [ ] Confirmed working on 3MP Camera (ISSUE: Photos have a green hue, camera_idx identifies the two versions) - https://forum.arducam.com/t/mega-3mp-micropython-driver/5708
 - [x] Can set resolution
 - [ ] Can set remaining filters and modes
 - [ ] Able to set multiple adjustments at the same time ([see issue#3](https://github.com/CoreElectronics/CE-Arducam-MicroPython/issues))
 - [ ] Class moved to separate file
 - [ ] Burst read
-- [ ] Confirm a micro SD card can use the same SPI bus (Micropython compatibility)
+- [ ] Confirm a micro SD card can use the same SPI bus (Micropython compatibility) - requires camera to release SPI bus, bulk reading into bytearray would speed this up
 - [ ] Confirm working with latest Micropython version)
 - [ ] Filemanager also handles subfolders for images
 - [ ] Confirm that different file formats output correctly (RGB=BMP, YGV?)
