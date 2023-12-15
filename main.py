@@ -415,13 +415,22 @@ class Camera:
 
 
 ################################################################## CODE ACTUAL ##################################################################
+
+import sdcard, uos
+
 spi = SPI(0,sck=Pin(18), miso=Pin(16), mosi=Pin(19))
 cs = Pin(17, Pin.OUT)
+
+#cs_sd = Pin(15, Pin.OUT)
 
 # button = Pin(15, Pin.IN,Pin.PULL_UP)
 onboard_LED = Pin(25, Pin.OUT)
 
 cam = Camera(spi, cs)
+
+#sd = sdcard.SDCard(spi, cs_sd)
+#uos.mount(sd, '/sd')
+
 '''
 RESOLUTION_160X120 = 0X00
     RESOLUTION_320X240 = 0X01
@@ -437,9 +446,10 @@ cam.set_resolution(cam.RESOLUTION_1280X720)
 
 cam.capture_jpg()
 sleep_ms(200)
-cam.saveJPG('image.jpg')
+cam.saveJPG('image.jpg') # cam.saveJPG('/sd/image.jpg')
 onboard_LED.off()
 
+uon.unmount()
 
 
 # photo_counter += 1
