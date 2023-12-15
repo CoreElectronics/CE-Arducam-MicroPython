@@ -368,9 +368,6 @@ class Camera:
 
 ##################### INTERNAL FUNCTIONS - LOW LEVEL #####################
 
-    def _read_buffer(self):
-        print('COMPLETE')
-
     def _bus_write(self, addr, val):
         self.cs.off()
         self.spi_bus.write(bytes([addr]))
@@ -402,7 +399,30 @@ class Camera:
         self.cs.on()
         self.received_length -= 1
         return data
-    
+
+    def _set_FIFO_burst(self):
+        self.spi_bus.write(bytes([self.BURST_FIFO_READ]))
+
+#     def _read_buff(self, length):
+#         if self.image_available:
+#             return
+#         if self.received_length < length:
+#             length = self.received_length
+#         
+#         self.cs.off()
+#         self.spi_bus.write(bytes([self.SINGLE_FIFO_READ]))
+#         self._burst_first_flag == False:
+#             self._burst_first_flag = True
+#             self.spi_bus.read(1)
+#         
+#         for 
+#             buffer[fill data] = self.spi_bus.read(1)
+# 
+#         self.cs.on()
+#         self.received_length -= length
+#         return length
+
+
     def _wait_idle(self):
         data = self._read_reg(self.CAM_REG_SENSOR_STATE)
         while ((int.from_bytes(data, 1) & 0x03) == self.CAM_REG_SENSOR_STATE_IDLE):
@@ -442,14 +462,13 @@ RESOLUTION_160X120 = 0X00
 sleep_ms(1000)
 
 onboard_LED.on()
-cam.set_resolution(cam.RESOLUTION_1280X720)
+cam.set_resolution(0X09)
 
 cam.capture_jpg()
 sleep_ms(200)
 cam.saveJPG('image.jpg') # cam.saveJPG('/sd/image.jpg')
 onboard_LED.off()
 
-uon.unmount()
 
 
 # photo_counter += 1
