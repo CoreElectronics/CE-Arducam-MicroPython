@@ -14,7 +14,8 @@ Project Status:
 - [ ] Can set remaining filters and modes
 - [ ] Able to set multiple adjustments at the same time ([see issue#3](https://github.com/CoreElectronics/CE-Arducam-MicroPython/issues))
 - [ ] Class moved to separate file
-- [ ] Burst read
+- [ ] Burst read - decrease time to save photo
+- [ ] Set SPI Speed higher - decrease time to save photo
 - [ ] Confirm a micro SD card can use the same SPI bus (Micropython compatibility) - requires camera to release SPI bus, bulk reading into bytearray would speed this up
 - [ ] Confirm working with latest Micropython version)
 - [ ] Filemanager also handles subfolders for images
