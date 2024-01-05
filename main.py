@@ -26,35 +26,52 @@ import ujson
 Start this alongside the camera module to save photos in a folder with a filename i.e. image-<counter>.jpg
 * appends '_' after a word, the next number and the file format
 '''
-def filemanager(self,filename):
+class FileManager:
+    def __init__(self, file_manager_name='filemanager.log'):
+        
+        self.FILE_MANAGER_LOG_NAME = file_manager_name
+        self.last_request_filename = None
+        self.suffix = None
+        count = 0
+        file_dict = {}
+        # Ensure file is present
+        if self.FILE_MANAGER_LOG_NAME not in uos.listdir():
+            with open(self.FILE_MANAGER_LOG_NAME, 'w') as f:
+                f.write(ujson.dumps(file_dict))
+            
+        # Check if the filename already exists in the storage
+        with open(self.FILE_MANAGER_LOG_NAME, 'r') as f:
+            self.file_dict = ujson.loads(f.read())
+
+
+    def new_jpg_fn(self, requested_filename=None):
+        return (self.new_filename(requested_filename) + '.jpg')
     
-    '''
-    image_<count>.jpg=3
-    bird_<count>=3
-    =
-    {'image': 3,
-     'bird': 3}
-    '''
-    count = 0
-    files = {}
-    # Ensure file is present
-    if self.FILE_MANAGER_LOG_NAME not in uos.listdir():
+#     def new_fn_custom(self, suffix, requested_filename=None, suffix):
+#         return (self.new_filename(requested_filename) + suffix)
+        
+    def new_filename(self, requested_filename):
+        count = 0
+        self.last_request_filename = requested_filename
+        
+        if requested_filename == None and self.last_request_filename == None:
+            raise Exception('Please enter a filename for the first use of the function')
+        
+        if requested_filename in self.file_dict:
+            count = self.file_dict[requested_filename] + 1
+        self.file_dict[requested_filename] = count
+        
+        self.save_manager_file()
+        new_filename = f"{requested_filename}_{count}" if count > 0 else f"{requested_filename}"
+        
+        return new_filename
+    
+    def save_manager_file(self):
+        # Save the updated list back to the storage
         with open(self.FILE_MANAGER_LOG_NAME, 'w') as f:
-            f.write(ujson.dumps({}))
-        
-    # Check if the filename already exists in the storage
-    with open(self.FILE_MANAGER_LOG_NAME, 'r') as f:
-        files = ujson.loads(f.read())
-        if filename in files:
-            count = files[filename] + 1
-        files[filename] = count
-        
-    # Save the updated list back to the storage
-    with open(self.FILE_MANAGER_LOG_NAME, 'w') as f:
-        f.write(ujson.dumps(files))
-        
-    new_filename = f"{filename}_{count}.jpg" if count > 0 else f"{filename}.jpg"
-    return new_filename
+            f.write(ujson.dumps(self.file_dict))
+
+
 
 class Camera:
     # Required imports
@@ -200,11 +217,35 @@ class Camera:
 #     RESOLUTION_1280X960 = 0X05
     RESOLUTION_1600X1200 = 0X06
     RESOLUTION_1920X1080 = 0X07
-    RESOLUTION_2048X1536 = 0X08 # 5MP only
-    RESOLUTION_2592X1944 = 0X09 # 3MP only
+    RESOLUTION_2048X1536 = 0X08 # 3MP only
+    RESOLUTION_2592X1944 = 0X09 # 5MP only
     RESOLUTION_96X96 = 0X0a
     RESOLUTION_128X128 = 0X0b
     RESOLUTION_320X320 = 0X0c
+    
+    valid_3mp_resolutions = {
+        '320x240': RESOLUTION_320X240, 
+        '640x480': RESOLUTION_640X480, 
+        '1280x720': RESOLUTION_1280X720, 
+        '1600x1200': RESOLUTION_1600X1200,
+        '1920x1080': RESOLUTION_1920X1080,
+        '2048x1536': RESOLUTION_2048X1536,
+        '96X96': RESOLUTION_96X96,
+        '128X128': RESOLUTION_128X128,
+        '320X320': RESOLUTION_320X320
+    }
+
+    valid_5mp_resolutions = {
+        '320x240': RESOLUTION_320X240, 
+        '640x480': RESOLUTION_640X480, 
+        '1280x720': RESOLUTION_1280X720, 
+        '1600x1200': RESOLUTION_1600X1200,
+        '1920x1080': RESOLUTION_1920X1080,
+        '2592x1944': RESOLUTION_2592X1944,
+        '96X96': RESOLUTION_96X96,
+        '128X128': RESOLUTION_128X128,
+        '320X320': RESOLUTION_320X320
+    }
 
     # FIFO and State setting registers
     ARDUCHIP_FIFO = 0x04
@@ -222,9 +263,8 @@ class Camera:
     BURST_FIFO_READ = 0X3C
     
     WHITE_BALANCE_WAIT_TIME_MS = 500
-    AWB_wait_ms = WHITE_BALANCE_WAIT_TIME_MS
     
-    FILE_MANAGER_LOG_NAME = 'filemanager.log'  
+    FILE_MANAGER_LOG_NAME = 'filemanager.log'
 
 # User callable functions
 ## Main functions
@@ -236,7 +276,7 @@ class Camera:
 ##################### Callable FUNCTIONS #####################
 
 ########### CORE PHOTO FUNCTIONS ###########
-    def __init__(self, spi_bus, cs):
+    def __init__(self, spi_bus, cs, skip_sleep=False, debug_information=False):
         self.cs = cs
         self.spi_bus = spi_bus
 
@@ -246,15 +286,15 @@ class Camera:
         self._wait_idle()
         self._write_reg(self.CAM_REG_DEBUG_DEVICE_ADDRESS, self.deviceAddress)
         self._wait_idle()
-        
+
         self.run_start_up_config = True
 
         self.set_pixel_format = self.CAM_IMAGE_PIX_FMT_JPG
         self.old_pixel_format = self.set_pixel_format
         
         
-        self.set_resolution = self.RESOLUTION_640X480 # ArduCam driver defines this as mode
-        self.old_resolution = self.set_resolution
+        self.current_resolution_setting = self.RESOLUTION_640X480 # ArduCam driver defines this as mode
+        self.old_resolution = self.current_resolution_setting
         
         
         self.set_filter(self.SPECIAL_NORMAL)
@@ -267,11 +307,15 @@ class Camera:
         
         # Tracks the AWB warmup time
         self.start_time = utime.ticks_ms()
-        
-        # print('camera init')
+        if debug_information:
+            print('Camera version =', self.camera_idx)
         if self.camera_idx == '3MP':
             self.startup_routine_3MP()
-            
+        
+        if self.camera_idx == '5MP' and skip_sleep == False:
+            utime.sleep_ms(self.WHITE_BALANCE_WAIT_TIME_MS)
+
+
 
     def startup_routine_3MP(self):
         # Leave the shutter open for some time seconds (i.e. take a few photos without saving)
@@ -287,8 +331,8 @@ class Camera:
     '''
     def capture_jpg(self):
         
-        if (utime.ticks_diff(utime.ticks_ms(), self.start_time) >= self.WHITE_BALANCE_WAIT_TIME_MS) and self.camera_idx == '5MP':
-            print('Please add a ', self.WHITE_BALANCE_WAIT_TIME_MS, ' delay to allow for white balance to run')
+        if (utime.ticks_diff(utime.ticks_ms(), self.start_time) <= self.WHITE_BALANCE_WAIT_TIME_MS) and self.camera_idx == '5MP':
+            print('Please add a ', self.WHITE_BALANCE_WAIT_TIME_MS, 'ms delay to allow for white balance to run')
             
         else:
 #             print('Starting capture JPG')
@@ -298,12 +342,12 @@ class Camera:
                 self.old_pixel_format = self.set_pixel_format
                 self._write_reg(self.CAM_REG_FORMAT, self.set_pixel_format) # Set to capture a jpg
                 self._wait_idle()
-#             print('old',self.old_resolution,'new',self.set_resolution)
+#             print('old',self.old_resolution,'new',self.current_resolution_setting)
                 # TODO: PROPERTIES TO CONFIGURE THE RESOLUTION
-            if (self.old_resolution != self.set_resolution) or self.run_start_up_config:
-                self.old_resolution = self.set_resolution
-                self._write_reg(self.CAM_REG_CAPTURE_RESOLUTION, self.set_resolution)
-#                 print('setting res', self.set_resolution)
+            if (self.old_resolution != self.current_resolution_setting) or self.run_start_up_config:
+                self.old_resolution = self.current_resolution_setting
+                self._write_reg(self.CAM_REG_CAPTURE_RESOLUTION, self.current_resolution_setting)
+#                 print('setting res', self.current_resolution_setting)
                 self._wait_idle()
             
             self.run_start_up_config = False
@@ -324,6 +368,8 @@ class Camera:
         
         image_data_int = 0x00
         image_data_next_int = 0x00
+        
+        print(self.received_length)
         
         while(self.received_length):
             
@@ -381,17 +427,25 @@ class Camera:
 #         self.received_length -= number of times run
 #         return data_buffer
 
-    '''
-    Both functions below should be set using the 'Camera.RESOLUTION_<xxx>X<xxx>' arguments
-    TODO: Use a dict to handle the possible modes, throw error otherwise
-    '''
+
     @property
     def resolution(self):
-        return self.set_resolution
+        return self.current_resolution_setting
     @resolution.setter
     def resolution(self, new_resolution):
-        self.set_resolution = new_resolution
-        print('TODO: Handle camera type and options for resolutions')
+        input_string_lower = new_resolution.lower()        
+        if self.camera_idx == '3MP':
+            if input_string_lower in self.valid_3mp_resolutions:
+                self.current_resolution_setting = self.valid_5mp_resolutions[input_string_lower]
+            else:
+                raise ValueError("Invalid resolution provided for {}, please select from {}".format(self.camera_idx, list(self.valid_3mp_resolutions.keys())))
+
+        elif self.camera_idx == '5MP':
+            if input_string_lower in self.valid_5mp_resolutions:
+                self.current_resolution_setting = self.valid_5mp_resolutions[input_string_lower]
+            else:
+                raise ValueError("Invalid resolution provided for {}, please select from {}".format(self.camera_idx, list(self.valid_5mp_resolutions.keys())))
+    
 
     def set_pixel_format(self, new_pixel_format):
         self.set_pixel_format = new_pixel_format
@@ -510,30 +564,31 @@ class Camera:
 
 ################################################################## CODE ACTUAL ##################################################################
 spi = SPI(0,sck=Pin(18), miso=Pin(16), mosi=Pin(19), baudrate=8000000)
+# spi = SPI(0,sck=Pin(18), miso=Pin(16), mosi=Pin(19), baudrate=1000000)
 cs = Pin(17, Pin.OUT)
 
 # button = Pin(15, Pin.IN,Pin.PULL_UP)
 onboard_LED = Pin(25, Pin.OUT)
 
-cam = Camera(spi, cs)
-'''
-RESOLUTION_160X120 = 0X00
-    RESOLUTION_320X240 = 0X01
-    RESOLUTION_640X480 = 0X02
-    RESOLUTION_1280X720 = 0X03
-    '''
+cam = Camera(spi, cs, debug_information=True)
+fm = FileManager()
 
 
-sleep_ms(cam.AWB_wait_ms)
+cam.resolution = '320X240'
+
+start_time_capture = utime.ticks_ms()
 
 onboard_LED.on()
-cam.capture_jpg()
-sleep_ms(50)
-cam.saveJPG('image.jpg')
+for i in range(5):
+    cam.capture_jpg()
+    sleep_ms(100)
+    new_fn = fm.new_jpg_fn('image')
+    print(new_fn, i)
+    cam.saveJPG(fm.new_jpg_fn('image'))
 onboard_LED.off()
 
-
-
+total_time_ms = utime.ticks_diff(utime.ticks_ms(), start_time_capture)
+print('Time take: {}s'.format(total_time_ms/1000))
 
 
 # photo_counter += 1
@@ -541,6 +596,13 @@ onboard_LED.off()
 
 
 #################################################################################################################################################
+'''
+Benchmarks
+- Default SPI speed (1000000?), cam.resolution = '640X480', no burst read (camera pointed at roof) ==== TIME: ~7.8 seconds
+- Increased speed (8000000?), cam.resolution = '640X480', no burst read (camera pointed at roof) ==== TIME: ~7.3 seconds
+
+'''
+
 
 
 # Initialise camera - 
