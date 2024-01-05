@@ -80,20 +80,32 @@ class Camera:
     CAM_REG_COLOR_EFFECT_CONTROL = 0x27
     
     SPECIAL_NORMAL = 0x00
+    SPECIAL_COOL = 1
+    SPECIAL_WARM = 2
     SPECIAL_BW = 0x04
-    SPECIAL_GREENISH = 0x20
-    # TODO Complete
+    SPECIAL_YELLOWING = 4
+    SPECIAL_REVERSE = 5
+    SPECIAL_GREENISH = 6
+    SPECIAL_LIGHT_YELLOW = 9 # 3MP Only
+
 
     # Set Brightness
     CAM_REG_BRIGHTNESS_CONTROL = 0X22
-    
-    # TODO
-    
-    
+
+    BRIGHTNESS_MINUS_4 = 8
+    BRIGHTNESS_MINUS_3 = 6
+    BRIGHTNESS_MINUS_2 = 4
+    BRIGHTNESS_MINUS_1 = 2
+    BRIGHTNESS_DEFAULT = 0
+    BRIGHTNESS_PLUS_1 = 1
+    BRIGHTNESS_PLUS_2 = 3
+    BRIGHTNESS_PLUS_3 = 5
+    BRIGHTNESS_PLUS_4 = 7
+
 
     # Set Contrast
     CAM_REG_CONTRAST_CONTROL = 0X23
-    
+
     CONTRAST_MINUS_3 = 6
     CONTRAST_MINUS_2 = 4
     CONTRAST_MINUS_1 = 2
@@ -101,15 +113,30 @@ class Camera:
     CONTRAST_PLUS_1 = 1
     CONTRAST_PLUS_2 = 3
     CONTRAST_PLUS_3 = 5
-    
-    
+
+
     # Set Saturation
     CAM_REG_SATURATION_CONTROL = 0X24
-    
-    
+
+    SATURATION_MINUS_3 = 6
+    SATURATION_MINUS_2 = 4
+    SATURATION_MINUS_1 = 2
+    SATURATION_DEFAULT = 0
+    SATURATION_PLUS_1 = 1
+    SATURATION_PLUS_2 = 3
+    SATURATION_PLUS_3 = 5
+
 
     # Set Exposure Value
-    # TODO: INSPECT LIBRARY, DIFFERENT TO OTHER SETTING REGISTERS
+    CAM_REG_EXPOSURE_CONTROL = 0X25
+
+    EXPOSURE_MINUS_3 = 6
+    EXPOSURE_MINUS_2 = 4
+    EXPOSURE_MINUS_1 = 2
+    EXPOSURE_DEFAULT = 0
+    EXPOSURE_PLUS_1 = 1
+    EXPOSURE_PLUS_2 = 3
+    EXPOSURE_PLUS_3 = 5
     
     
     # Set Whitebalance
@@ -122,15 +149,30 @@ class Camera:
     WB_MODE_HOME = 4
 
     # Set Sharpness
-    CAM_REG_SHARPNESS_CONTROL = 0X28
+    CAM_REG_SHARPNESS_CONTROL = 0X28 #3MP only
+    
+    SHARPNESS_NORMAL = 0
+    SHARPNESS_1 = 1
+    SHARPNESS_2 = 2
+    SHARPNESS_3 = 3
+    SHARPNESS_4 = 4
+    SHARPNESS_5 = 5
+    SHARPNESS_6 = 6
+    SHARPNESS_7 = 7
+    SHARPNESS_8 = 8
     
     # Set Autofocus
-    CAM_REG_AUTO_FOCUS_CONTROL = 0X29
-    
+    CAM_REG_AUTO_FOCUS_CONTROL = 0X29 #5MP only
+
     # Set Image quality
     CAM_REG_IMAGE_QUALITY = 0x2A
     
+    IMAGE_QUALITY_HIGH = 0
+    IMAGE_QUALITY_MEDI = 1
+    IMAGE_QUALITY_LOW = 2
     
+    # Manual gain, and exposure are explored in the datasheet - https://www.arducam.com/downloads/datasheet/Arducam_MEGA_SPI_Camera_Application_Note.pdf
+
     # Device addressing
     CAM_REG_DEBUG_DEVICE_ADDRESS = 0x0A
     deviceAddress = 0x78
@@ -148,17 +190,18 @@ class Camera:
     
     # Resolution settings
     CAM_REG_CAPTURE_RESOLUTION = 0x21
-    
-    RESOLUTION_160X120 = 0X00
+
+    # Some resolutions are not available - refer to datasheet https://www.arducam.com/downloads/datasheet/Arducam_MEGA_SPI_Camera_Application_Note.pdf
+#     RESOLUTION_160X120 = 0X00
     RESOLUTION_320X240 = 0X01
     RESOLUTION_640X480 = 0X02
-    RESOLUTION_800X600 = 0X03
+#     RESOLUTION_800X600 = 0X03
     RESOLUTION_1280X720 = 0X04
-    RESOLUTION_1280X960 = 0X05
+#     RESOLUTION_1280X960 = 0X05
     RESOLUTION_1600X1200 = 0X06
     RESOLUTION_1920X1080 = 0X07
-    RESOLUTION_2048X1536 = 0X08
-    RESOLUTION_2592X1944 = 0X09
+    RESOLUTION_2048X1536 = 0X08 # 5MP only
+    RESOLUTION_2592X1944 = 0X09 # 3MP only
     RESOLUTION_96X96 = 0X0a
     RESOLUTION_128X128 = 0X0b
     RESOLUTION_320X320 = 0X0c
@@ -179,10 +222,9 @@ class Camera:
     BURST_FIFO_READ = 0X3C
     
     WHITE_BALANCE_WAIT_TIME_MS = 500
+    AWB_wait_ms = WHITE_BALANCE_WAIT_TIME_MS
     
-    FILE_MANAGER_LOG_NAME = 'filemanager.log'
-    
-    
+    FILE_MANAGER_LOG_NAME = 'filemanager.log'  
 
 # User callable functions
 ## Main functions
@@ -207,60 +249,75 @@ class Camera:
         
         self.run_start_up_config = True
 
-        self.pixel_format = self.CAM_IMAGE_PIX_FMT_JPG
-        self.old_pixel_format = self.pixel_format
+        self.set_pixel_format = self.CAM_IMAGE_PIX_FMT_JPG
+        self.old_pixel_format = self.set_pixel_format
         
         
-        self.resolution = self.RESOLUTION_640X480 # ArduCam driver defines this as mode
-        self.old_resolution = self.resolution
+        self.set_resolution = self.RESOLUTION_640X480 # ArduCam driver defines this as mode
+        self.old_resolution = self.set_resolution
         
         
         self.set_filter(self.SPECIAL_NORMAL)
         
         self.received_length = 0
         self.total_length = 0
-        self.burst_first_flag = False
+        self.first_burst_run = False
+        
+        
         
         # Tracks the AWB warmup time
         self.start_time = utime.ticks_ms()
         
-        print('camera init')
+        # print('camera init')
+        if self.camera_idx == '3MP':
+            self.startup_routine_3MP()
+            
+
+    def startup_routine_3MP(self):
+        # Leave the shutter open for some time seconds (i.e. take a few photos without saving)
+        print('Running 3MP startup routine')
+        self.capture_jpg()
+        self.saveJPG('dummy_image.jpg')
+        uos.remove('dummy_image.jpg')
+        print('complete')
+
     '''
     Issue warning if the filepath doesnt end in .jpg (Blank) and append
     Issue error if the filetype is NOT .jpg
     '''
     def capture_jpg(self):
         
-        if utime.ticks_diff(utime.ticks_ms(), self.start_time) >= self.WHITE_BALANCE_WAIT_TIME_MS:
-
-            print('Starting capture JPG')
+        if (utime.ticks_diff(utime.ticks_ms(), self.start_time) >= self.WHITE_BALANCE_WAIT_TIME_MS) and self.camera_idx == '5MP':
+            print('Please add a ', self.WHITE_BALANCE_WAIT_TIME_MS, ' delay to allow for white balance to run')
+            
+        else:
+#             print('Starting capture JPG')
             # JPG, bmp ect
             # TODO: PROPERTIES TO CONFIGURE THE PIXEL FORMAT
-            if (self.old_pixel_format != self.pixel_format) or self.run_start_up_config:
-                self.old_pixel_format = self.pixel_format
-                self._write_reg(self.CAM_REG_FORMAT, self.pixel_format) # Set to capture a jpg
+            if (self.old_pixel_format != self.set_pixel_format) or self.run_start_up_config:
+                self.old_pixel_format = self.set_pixel_format
+                self._write_reg(self.CAM_REG_FORMAT, self.set_pixel_format) # Set to capture a jpg
                 self._wait_idle()
-            print('old',self.old_resolution,'new',self.resolution)
+#             print('old',self.old_resolution,'new',self.set_resolution)
                 # TODO: PROPERTIES TO CONFIGURE THE RESOLUTION
-            if (self.old_resolution != self.resolution) or self.run_start_up_config:
-                self.old_resolution = self.resolution
-                self._write_reg(self.CAM_REG_CAPTURE_RESOLUTION, self.resolution)
-                print('setting res', self.resolution)
+            if (self.old_resolution != self.set_resolution) or self.run_start_up_config:
+                self.old_resolution = self.set_resolution
+                self._write_reg(self.CAM_REG_CAPTURE_RESOLUTION, self.set_resolution)
+#                 print('setting res', self.set_resolution)
                 self._wait_idle()
             
             self.run_start_up_config = False
             
             # Start capturing the photo
             self._set_capture()
-            print('capture jpg complete')
-        else:
-            print('Please add a ', self.WHITE_BALANCE_WAIT_TIME_MS, ' delay to allow for white balance to run')
-    
+#             print('capture jpg complete')
+        
+
     # TODO: After reading the camera data clear the FIFO and reset the camera (so that the first time read can be used)
     def saveJPG(self,filename):
         headflag = 0
-        print('starting saving')
-        print('rec len:', self.received_length)
+        print('Saving image, please dont remove power')
+#         print('rec len:', self.received_length)
         
         image_data = 0x00
         image_data_next = 0x00
@@ -280,27 +337,64 @@ class Camera:
             
             if (image_data_int == 0xff) and (image_data_next_int == 0xd8):
                 # TODO: Save file to filename
-                print('start of file')
+#                 print('start of file')
                 headflag = 1
                 jpg_to_write = open(filename,'ab')
                 jpg_to_write.write(image_data)
                 jpg_to_write.write(image_data_next)
                 
             if (image_data_int == 0xff) and (image_data_next_int == 0xd9):
-                print('TODO: Save and close file?')
+#                 print('TODO: Save and close file?')
                 headflag = 0
                 jpg_to_write.write(image_data_next)
                 jpg_to_write.close()
 
+
+
+
+
+    def save_JPG_burst(self):
+        headflag = 0
+        print('Saving image, please dont remove power')
+        
+#     def _read_byte(self):
+#         self.cs.off()
+#         self.spi_bus.write(bytes([self.SINGLE_FIFO_READ]))
+#         data = self.spi_bus.read(1)
+#         data = self.spi_bus.read(1)
+#         self.cs.on()
+#         self.received_length -= 1
+#         return data
+
+
+#     def _burst_read_FIFO(self):
+#         #compute how many bytes to read
+#         self.cs.off()
+#         self.spi_bus.write(bytes([self.BURST_FIFO_READ]))
+#         while burst_read_length:
+#             data = self.spi_bus.read(1)
+#             if self.first_burst_fifo == False:
+#                 
+#                 # add this data to buffer
+#             # Add data to buffer until full
+#         self.cs.on()
+#         self.received_length -= number of times run
+#         return data_buffer
+
     '''
     Both functions below should be set using the 'Camera.RESOLUTION_<xxx>X<xxx>' arguments
-    TODO: seems clunky, find a better way to handle this
+    TODO: Use a dict to handle the possible modes, throw error otherwise
     '''
-    def set_resolution(self, new_resolution):
-        self.resolution = new_resolution
+    @property
+    def resolution(self):
+        return self.set_resolution
+    @resolution.setter
+    def resolution(self, new_resolution):
+        self.set_resolution = new_resolution
+        print('TODO: Handle camera type and options for resolutions')
 
     def set_pixel_format(self, new_pixel_format):
-        self.pixel_format = new_pixel_format
+        self.set_pixel_format = new_pixel_format
 
 ########### ACCSESSORY FUNCTIONS ###########
 
@@ -354,7 +448,7 @@ class Camera:
         len1 = int.from_bytes(self._read_reg(self.FIFO_SIZE1),1)
         len2 = int.from_bytes(self._read_reg(self.FIFO_SIZE2),1)
         len3 = int.from_bytes(self._read_reg(self.FIFO_SIZE3),1)
-        print(len1,len2,len3)
+#         print(len1,len2,len3)
         return ((len3 << 16) | (len2 << 8) | len1) & 0xffffff
 
     def _get_sensor_config(self):
@@ -367,6 +461,9 @@ class Camera:
 
 
 ##################### INTERNAL FUNCTIONS - LOW LEVEL #####################
+
+    def _read_buffer(self):
+        print('COMPLETE')
 
     def _bus_write(self, addr, val):
         self.cs.off()
@@ -399,30 +496,7 @@ class Camera:
         self.cs.on()
         self.received_length -= 1
         return data
-
-    def _set_FIFO_burst(self):
-        self.spi_bus.write(bytes([self.BURST_FIFO_READ]))
-
-#     def _read_buff(self, length):
-#         if self.image_available:
-#             return
-#         if self.received_length < length:
-#             length = self.received_length
-#         
-#         self.cs.off()
-#         self.spi_bus.write(bytes([self.SINGLE_FIFO_READ]))
-#         self._burst_first_flag == False:
-#             self._burst_first_flag = True
-#             self.spi_bus.read(1)
-#         
-#         for 
-#             buffer[fill data] = self.spi_bus.read(1)
-# 
-#         self.cs.on()
-#         self.received_length -= length
-#         return length
-
-
+    
     def _wait_idle(self):
         data = self._read_reg(self.CAM_REG_SENSOR_STATE)
         while ((int.from_bytes(data, 1) & 0x03) == self.CAM_REG_SENSOR_STATE_IDLE):
@@ -435,22 +509,13 @@ class Camera:
 
 
 ################################################################## CODE ACTUAL ##################################################################
-
-import sdcard, uos
-
-spi = SPI(0,sck=Pin(18), miso=Pin(16), mosi=Pin(19))
+spi = SPI(0,sck=Pin(18), miso=Pin(16), mosi=Pin(19), baudrate=8000000)
 cs = Pin(17, Pin.OUT)
-
-#cs_sd = Pin(15, Pin.OUT)
 
 # button = Pin(15, Pin.IN,Pin.PULL_UP)
 onboard_LED = Pin(25, Pin.OUT)
 
 cam = Camera(spi, cs)
-
-#sd = sdcard.SDCard(spi, cs_sd)
-#uos.mount(sd, '/sd')
-
 '''
 RESOLUTION_160X120 = 0X00
     RESOLUTION_320X240 = 0X01
@@ -459,15 +524,15 @@ RESOLUTION_160X120 = 0X00
     '''
 
 
-sleep_ms(1000)
+sleep_ms(cam.AWB_wait_ms)
 
 onboard_LED.on()
-cam.set_resolution(0X09)
-
 cam.capture_jpg()
-sleep_ms(200)
-cam.saveJPG('image.jpg') # cam.saveJPG('/sd/image.jpg')
+sleep_ms(50)
+cam.saveJPG('image.jpg')
 onboard_LED.off()
+
+
 
 
 
