@@ -262,9 +262,12 @@ class Camera:
     SINGLE_FIFO_READ = 0x3D
     BURST_FIFO_READ = 0X3C
     
-    WHITE_BALANCE_WAIT_TIME_MS = 500
+    # Size of image_buffer (Burst reading)
+    BUFFER_MAX_LENGTH = 255
     
-    FILE_MANAGER_LOG_NAME = 'filemanager.log'
+    # For 5MP startup routine
+    WHITE_BALANCE_WAIT_TIME_MS = 500
+
 
 # User callable functions
 ## Main functions
@@ -289,9 +292,9 @@ class Camera:
 
         self.run_start_up_config = True
 
-        self.set_pixel_format = self.CAM_IMAGE_PIX_FMT_JPG
-        self.old_pixel_format = self.set_pixel_format
-        
+        # Set default format and resolution
+        self.current_pixel_format = self.CAM_IMAGE_PIX_FMT_JPG
+        self.old_pixel_format = self.current_pixel_format
         
         self.current_resolution_setting = self.RESOLUTION_640X480 # ArduCam driver defines this as mode
         self.old_resolution = self.current_resolution_setting
@@ -301,8 +304,11 @@ class Camera:
         
         self.received_length = 0
         self.total_length = 0
-        self.first_burst_run = False
         
+        # Burst setup
+        self.first_burst_run = False
+        self.image_buffer = bytearray(self.BUFFER_MAX_LENGTH)
+        self.valid_image_buffer = 0
         
         
         # Tracks the AWB warmup time
@@ -338,9 +344,9 @@ class Camera:
 #             print('Starting capture JPG')
             # JPG, bmp ect
             # TODO: PROPERTIES TO CONFIGURE THE PIXEL FORMAT
-            if (self.old_pixel_format != self.set_pixel_format) or self.run_start_up_config:
-                self.old_pixel_format = self.set_pixel_format
-                self._write_reg(self.CAM_REG_FORMAT, self.set_pixel_format) # Set to capture a jpg
+            if (self.old_pixel_format != self.current_pixel_format) or self.run_start_up_config:
+                self.old_pixel_format = self.current_pixel_format
+                self._write_reg(self.CAM_REG_FORMAT, self.current_pixel_format) # Set to capture a jpg
                 self._wait_idle()
 #             print('old',self.old_resolution,'new',self.current_resolution_setting)
                 # TODO: PROPERTIES TO CONFIGURE THE RESOLUTION
@@ -402,6 +408,21 @@ class Camera:
     def save_JPG_burst(self):
         headflag = 0
         print('Saving image, please dont remove power')
+
+        image_data = 0x00
+        image_data_next = 0x00
+
+        image_data_int = 0x00
+        image_data_next_int = 0x00
+
+        print(self.received_length)
+
+        while(self.received_length):
+            self._burst_read_FIFO()
+            
+            start_bytes = self.image_buffer[0]
+            end_bytes = self.image_buffer[self.valid_image_buffer-1]
+            
         
 #     def _read_byte(self):
 #         self.cs.off()
@@ -413,19 +434,34 @@ class Camera:
 #         return data
 
 
-#     def _burst_read_FIFO(self):
-#         #compute how many bytes to read
-#         self.cs.off()
-#         self.spi_bus.write(bytes([self.BURST_FIFO_READ]))
-#         while burst_read_length:
-#             data = self.spi_bus.read(1)
-#             if self.first_burst_fifo == False:
-#                 
-#                 # add this data to buffer
-#             # Add data to buffer until full
-#         self.cs.on()
-#         self.received_length -= number of times run
-#         return data_buffer
+    def _burst_read_FIFO(self):
+        #compute how many bytes to read
+        burst_read_length = self.BUFFER_MAX_LENGTH # Default to max length
+        if self.received_length < self.BUFFER_MAX_LENGTH:
+            burst_read_length = self.received_length
+        current_buffer_byte = 0
+        
+        self.cs.off()
+        self.spi_bus.write(bytes([self.BURST_FIFO_READ]))
+        
+        data = self.spi_bus.read(1)
+        # Throw away first byte on first read
+        if self.first_burst_fifo == True:
+            self.image_buffer[current_buffer_byte] = data
+            current_buffer_byte += 1
+            burst_read_length -= 1
+            print('first burst read')
+            
+        
+        while burst_read_length:
+            data = self.spi_bus.read(1) # Read from camera
+            self.image_buffer[current_buffer_byte] = data # write to buffer
+            current_buffer_byte += 1
+            burst_read_length -= 1
+
+        self.cs.on()
+        self.received_length -= burst_read_length
+        self.valid_image_buffer = burst_read_length
 
 
     @property
@@ -448,19 +484,86 @@ class Camera:
     
 
     def set_pixel_format(self, new_pixel_format):
-        self.set_pixel_format = new_pixel_format
+        self.current_pixel_format = new_pixel_format
 
 ########### ACCSESSORY FUNCTIONS ###########
 
+
+
+
+
+
+
+
+
     # TODO: Complete for other camera settings
     # Make these setters - https://github.com/CoreElectronics/CE-PiicoDev-Accelerometer-LIS3DH-MicroPython-Module/blob/abcb4337020434af010f2325b061e694b808316d/PiicoDev_LIS3DH.py#L118C1-L118C1
-    def set_brightness_level(self):
-        print('TODO: COMPLETE THIS FUNCTION')
+    
+#     # Set Brightness
+#     CAM_REG_BRIGHTNESS_CONTROL = 0X22
+# 
+#     BRIGHTNESS_MINUS_4 = 8
+#     BRIGHTNESS_MINUS_3 = 6
+#     BRIGHTNESS_MINUS_2 = 4
+#     BRIGHTNESS_MINUS_1 = 2
+#     BRIGHTNESS_DEFAULT = 0
+#     BRIGHTNESS_PLUS_1 = 1
+#     BRIGHTNESS_PLUS_2 = 3
+#     BRIGHTNESS_PLUS_3 = 5
+#     BRIGHTNESS_PLUS_4 = 7
+
+
+    def set_brightness_level(self, brightness):
+        self._write_reg(self.CAM_REG_BRIGHTNESS_CONTROL, brightness)
+        self._wait_idle()
 
     def set_filter(self, effect):
         self._write_reg(self.CAM_REG_COLOR_EFFECT_CONTROL, effect)
         self._wait_idle()
-    
+
+#     # Set Saturation
+#     CAM_REG_SATURATION_CONTROL = 0X24
+# 
+#     SATURATION_MINUS_3 = 6
+#     SATURATION_MINUS_2 = 4
+#     SATURATION_MINUS_1 = 2
+#     SATURATION_DEFAULT = 0
+#     SATURATION_PLUS_1 = 1
+#     SATURATION_PLUS_2 = 3
+#     SATURATION_PLUS_3 = 5
+
+    def set_saturation_control(self, saturation_value):
+        self._write_reg(self.CAM_REG_SATURATION_CONTROL, saturation_value)
+        self._wait_idle()
+
+#     # Set Exposure Value
+#     CAM_REG_EXPOSURE_CONTROL = 0X25
+# 
+#     EXPOSURE_MINUS_3 = 6
+#     EXPOSURE_MINUS_2 = 4
+#     EXPOSURE_MINUS_1 = 2
+#     EXPOSURE_DEFAULT = 0
+#     EXPOSURE_PLUS_1 = 1
+#     EXPOSURE_PLUS_2 = 3
+#     EXPOSURE_PLUS_3 = 5
+
+
+#     # Set Contrast
+#     CAM_REG_CONTRAST_CONTROL = 0X23
+# 
+#     CONTRAST_MINUS_3 = 6
+#     CONTRAST_MINUS_2 = 4
+#     CONTRAST_MINUS_1 = 2
+#     CONTRAST_DEFAULT = 0
+#     CONTRAST_PLUS_1 = 1
+#     CONTRAST_PLUS_2 = 3
+#     CONTRAST_PLUS_3 = 5
+
+    def set_contrast(self, contrast):
+        self._write_reg(self.CAM_REG_CONTRAST_CONTROL, contrast)
+        self._wait_idle()
+
+
     def set_white_balance(self, environment):
         register_value = self.WB_MODE_AUTO
 
@@ -564,42 +667,31 @@ class Camera:
 
 ################################################################## CODE ACTUAL ##################################################################
 spi = SPI(0,sck=Pin(18), miso=Pin(16), mosi=Pin(19), baudrate=8000000)
-# spi = SPI(0,sck=Pin(18), miso=Pin(16), mosi=Pin(19), baudrate=1000000)
 cs = Pin(17, Pin.OUT)
 
 # button = Pin(15, Pin.IN,Pin.PULL_UP)
 onboard_LED = Pin(25, Pin.OUT)
 
-cam = Camera(spi, cs, debug_information=True)
-fm = FileManager()
+cam = Camera(spi, cs)
 
+cam.resolution = '640x480'
+# cam.set_filter(cam.SPECIAL_REVERSE)
+cam.set_brightness_level(cam.BRIGHTNESS_PLUS_4)
+cam.set_contrast(cam.CONTRAST_MINUS_3)
 
-cam.resolution = '320X240'
-
-start_time_capture = utime.ticks_ms()
 
 onboard_LED.on()
-for i in range(5):
-    cam.capture_jpg()
-    sleep_ms(100)
-    new_fn = fm.new_jpg_fn('image')
-    print(new_fn, i)
-    cam.saveJPG(fm.new_jpg_fn('image'))
+cam.capture_jpg()
+sleep_ms(50)
+cam.saveJPG('image.jpg')
 onboard_LED.off()
-
-total_time_ms = utime.ticks_diff(utime.ticks_ms(), start_time_capture)
-print('Time take: {}s'.format(total_time_ms/1000))
-
-
-# photo_counter += 1
-#nboard_LED.off()
 
 
 #################################################################################################################################################
 '''
 Benchmarks
 - Default SPI speed (1000000?), cam.resolution = '640X480', no burst read (camera pointed at roof) ==== TIME: ~7.8 seconds
-- Increased speed (8000000?), cam.resolution = '640X480', no burst read (camera pointed at roof) ==== TIME: ~7.3 seconds
+- Increased speed (8000000), cam.resolution = '640X480', no burst read (camera pointed at roof) ==== TIME: ~7.3 seconds
 
 '''
 
