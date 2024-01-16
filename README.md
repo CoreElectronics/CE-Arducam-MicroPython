@@ -23,7 +23,7 @@ Project Status:
 - [ ] Confirm that different file formats output correctly (RGB=BMP, YGV?)
 - [ ] Confirm that pixel RGB values can be extrapolated from BMP format for machine learning applications
 
-The Camera library can be created by extracting the 'Camera' class from the main.py file in the [main.py](https://github.com/CoreElectronics/CE-Arducam-MicroPython/blob/main/main.py). 
+The Camera library can be created by extracting the 'Camera' class from the [main.py](https://github.com/CoreElectronics/CE-Arducam-MicroPython/blob/main/main.py) file.
 
 # License
 This project is open source - please review the LICENSE.md file for further licensing information.
