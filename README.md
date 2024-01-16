@@ -1,4 +1,6 @@
-This is the Repo for the Core Electronics port of the Arducam Mega 5MP Camera for the Raspberry Pi Pico (Micropython)
+This is the Repo for the Core Electronics port of the Arducam Mega Cameras for the Raspberry Pi Pico (Micropython)
+* [ArduCam Mega 5MP Camera](https://core-electronics.com.au/arducam-mega-5mp-camera.html)
+* [ArduCam Mega 3MP Camera](https://core-electronics.com.au/arducam-mega-3mp-camera.html)
 
 Status: **Experimental**
 This driver is very much experimental at the moment. Expect frequent, breaking updates.
