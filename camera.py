@@ -292,6 +292,8 @@ class Camera:
         self.image_buffer = bytearray(self.BUFFER_MAX_LENGTH)
         self.valid_image_buffer = 0
         
+        self.camera_idx = 'NOT DETECTED'
+        
         
         # Tracks the AWB warmup time
         self.start_time = utime.ticks_ms()
@@ -302,7 +304,6 @@ class Camera:
         
         if self.camera_idx == '5MP' and skip_sleep == False:
             utime.sleep_ms(self.WHITE_BALANCE_WAIT_TIME_MS)
-
 
 
     def startup_routine_3MP(self):
@@ -318,10 +319,9 @@ class Camera:
     Issue error if the filetype is NOT .jpg
     '''
     def capture_jpg(self):
-        
+
         if (utime.ticks_diff(utime.ticks_ms(), self.start_time) <= self.WHITE_BALANCE_WAIT_TIME_MS) and self.camera_idx == '5MP':
             print('Please add a ', self.WHITE_BALANCE_WAIT_TIME_MS, 'ms delay to allow for white balance to run')
-            
         else:
 #             print('Starting capture JPG')
             # JPG, bmp ect
@@ -337,7 +337,6 @@ class Camera:
                 self._write_reg(self.CAM_REG_CAPTURE_RESOLUTION, self.current_resolution_setting)
 #                 print('setting res', self.current_resolution_setting)
                 self._wait_idle()
-            
             self.run_start_up_config = False
             
             # Start capturing the photo
@@ -470,14 +469,6 @@ class Camera:
 
 ########### ACCSESSORY FUNCTIONS ###########
 
-
-
-
-
-
-
-
-
     # TODO: Complete for other camera settings
     # Make these setters - https://github.com/CoreElectronics/CE-PiicoDev-Accelerometer-LIS3DH-MicroPython-Module/blob/abcb4337020434af010f2325b061e694b808316d/PiicoDev_LIS3DH.py#L118C1-L118C1
     
@@ -574,14 +565,19 @@ class Camera:
         self._write_reg(self.ARDUCHIP_FIFO, self.FIFO_START_MASK)
 
     def _set_capture(self):
+#         print('a1')
         self._clear_fifo_flag()
         self._wait_idle()
         self._start_capture()
-        while (self._get_bit(self.ARDUCHIP_TRIG, self.CAP_DONE_MASK) == 0):
-            sleep_ms(1)
+#         print('a2')
+        while (int(self._get_bit(self.ARDUCHIP_TRIG, self.CAP_DONE_MASK)) == 0):
+#             print(self._get_bit(self.ARDUCHIP_TRIG, self.CAP_DONE_MASK))
+            sleep_ms(200)
+#         print('a3')
         self.received_length = self._read_fifo_length()
         self.total_length = self.received_length
         self.burst_first_flag = False
+#         print('a4')
     
     def _read_fifo_length(self): # TODO: CONFIRM AND SWAP TO A 3 BYTE READ
         len1 = int.from_bytes(self._read_reg(self.FIFO_SIZE1),1)
@@ -645,4 +641,6 @@ class Camera:
     def _get_bit(self, addr, bit):
         data = self._read_reg(addr);
         return int.from_bytes(data, 1) & bit;
+
+
 
