@@ -11,7 +11,7 @@ This project is featured in the 27-July-2023 episode of [The Factory](https://yo
 </a>
 
 Project Status:
-- [x] Confirmed working on 3MP Camera
+- [x] Confirmed working on 3MP Camera and 5MP Camera
 - [x] SOLVED: Photos have a green hue, camera_idx identifies the two versions - https://forum.arducam.com/t/mega-3mp-micropython-driver/5708
 - [x] Can set resolution
 - [ ] Can set remaining filters and modes
