@@ -369,7 +369,7 @@ class Camera:
         image_data_int = 0x00
         image_data_next_int = 0x00
         
-        print(self.received_length)
+        #print(self.received_length)
         
         while(self.received_length):
             
@@ -378,44 +378,60 @@ class Camera:
             
             image_data_next = self._read_byte()
             image_data_next_int = int.from_bytes(image_data_next, 1) # TODO: CHANGE TO READ n BYTES
-            if headflag == 1:
+            if headflag == 0:
+                if (image_data_int == 0xff) and (image_data_next_int == 0xd8):
+                    # TODO: Save file to filename
+#                    print('start of file', self.received_length)
+                    headflag = 1
+                    jpg_to_write = open(filename,'ab')
+                    jpg_to_write.write(image_data)
+                    jpg_to_write.write(image_data_next)
+            else:
                 jpg_to_write.write(image_data_next)
-            
-            if (image_data_int == 0xff) and (image_data_next_int == 0xd8):
-                # TODO: Save file to filename
-#                 print('start of file')
-                headflag = 1
-                jpg_to_write = open(filename,'ab')
-                jpg_to_write.write(image_data)
-                jpg_to_write.write(image_data_next)
-                
-            if (image_data_int == 0xff) and (image_data_next_int == 0xd9):
-#                 print('TODO: Save and close file?')
-                headflag = 0
-                jpg_to_write.write(image_data_next)
-                jpg_to_write.close()
+                if (image_data_int == 0xff) and (image_data_next_int == 0xd9):
+#                    print('close file', self.received_length)
+                    jpg_to_write.close()
+                    break;
 
 
+    #resolution = '640x480'
+    #saveJPG        31.373s
+    #save_JPG_burst 0.8679999s
+    #save_JPG_burst did not work with resolution = '320X240' not sure why, output file is empty
 
+    def save_JPG_burst(self,filename):
+#        print('start of file', self.received_length)
+        jpg_to_write = open(filename,'ab')
+ 
+        recv_len = self.received_length 
+        
+        self.cs.off()
+        self.spi_bus.write(bytes([self.BURST_FIFO_READ]))
+        
+        # Throw away first byte on first read
+        data = self.spi_bus.read(1)
+        
+        inx = 0
 
-
-    def save_JPG_burst(self):
-        headflag = 0
-        print('Saving image, please dont remove power')
-
-        image_data = 0x00
-        image_data_next = 0x00
-
-        image_data_int = 0x00
-        image_data_next_int = 0x00
-
-        print(self.received_length)
-
-        while(self.received_length):
-            self._burst_read_FIFO()
-            
-            start_bytes = self.image_buffer[0]
-            end_bytes = self.image_buffer[self.valid_image_buffer-1]
+        while recv_len > 0:
+            last_byte = self.image_buffer[self.BUFFER_MAX_LENGTH - 1]
+#            print('last', last_byte)
+            self.spi_bus.readinto(self.image_buffer)
+            recv_len -= self.BUFFER_MAX_LENGTH
+#            if self.image_buffer[0] == 0xff and self.image_buffer[1] == 0xd8:
+#                print('start of jpeg image')
+#            print('buff', self.image_buffer)
+            inx = self.image_buffer.find(b'\xff\xd9')
+            if inx >= 0:
+                jpg_to_write.write(self.image_buffer[:inx+2])
+#                print(self.image_buffer[:inx+2])
+                break
+            elif last_byte == 0xff and self.image_buffer[0] == 0xd9:
+                jpg_to_write.write(b'\xd9')
+#                print('corner case termination')
+                break
+            else:
+                jpg_to_write.write(self.image_buffer)
             
         
 #     def _read_byte(self):
@@ -428,34 +444,34 @@ class Camera:
 #         return data
 
 
-    def _burst_read_FIFO(self):
-        #compute how many bytes to read
-        burst_read_length = self.BUFFER_MAX_LENGTH # Default to max length
-        if self.received_length < self.BUFFER_MAX_LENGTH:
-            burst_read_length = self.received_length
-        current_buffer_byte = 0
+    # def _burst_read_FIFO(self):
+    #     #compute how many bytes to read
+    #     burst_read_length = self.BUFFER_MAX_LENGTH # Default to max length
+    #     if self.received_length < self.BUFFER_MAX_LENGTH:
+    #         burst_read_length = self.received_length
+    #     current_buffer_byte = 0
         
-        self.cs.off()
-        self.spi_bus.write(bytes([self.BURST_FIFO_READ]))
+    #     self.cs.off()
+    #     self.spi_bus.write(bytes([self.BURST_FIFO_READ]))
         
-        data = self.spi_bus.read(1)
-        # Throw away first byte on first read
-        if self.first_burst_fifo == True:
-            self.image_buffer[current_buffer_byte] = data
-            current_buffer_byte += 1
-            burst_read_length -= 1
-            print('first burst read')
+    #     data = self.spi_bus.read(1)
+    #     # Throw away first byte on first read
+    #     if self.first_burst_fifo == True:
+    #         self.image_buffer[current_buffer_byte] = data
+    #         current_buffer_byte += 1
+    #         burst_read_length -= 1
+    #         print('first burst read')
             
         
-        while burst_read_length:
-            data = self.spi_bus.read(1) # Read from camera
-            self.image_buffer[current_buffer_byte] = data # write to buffer
-            current_buffer_byte += 1
-            burst_read_length -= 1
+    #     while burst_read_length:
+    #         data = self.spi_bus.read(1) # Read from camera
+    #         self.image_buffer[current_buffer_byte] = data # write to buffer
+    #         current_buffer_byte += 1
+    #         burst_read_length -= 1
 
-        self.cs.on()
-        self.received_length -= burst_read_length
-        self.valid_image_buffer = burst_read_length
+    #     self.cs.on()
+    #     self.received_length -= burst_read_length
+    #     self.valid_image_buffer = burst_read_length
 
 
     @property
