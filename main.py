@@ -1,7 +1,7 @@
 # Arducam port to Pico
 
 from machine import Pin, SPI, reset
-# Developing on 1.19
+# Developing on 1.24
 from camera import *
 
 '''
