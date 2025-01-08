@@ -2,6 +2,7 @@
 import uos
 import ujson
 
+#old code that is now also inside of camera.py
 
 class FileManager:
     def __init__(self, file_manager_name='filemanager.log'):
@@ -56,4 +57,4 @@ class FileManager:
 
 
 fm = FileManager()
-print(fm.new_jpg_filename('image'))
+print(fm.new_jpg_fn('image'))
