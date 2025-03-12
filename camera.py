@@ -250,6 +250,9 @@ class Camera:
     # For 5MP startup routine
     WHITE_BALANCE_WAIT_TIME_MS = 500
 
+    # Debug Mode
+    DEBUG_MODE = False
+
 
 # User callable functions
 ## Main functions
@@ -264,6 +267,7 @@ class Camera:
     def __init__(self, spi_bus, cs, skip_sleep=False, debug_information=False):
         self.cs = cs
         self.spi_bus = spi_bus
+        self.DEBUG_MODE = debug_information
 
         self._write_reg(self.CAM_REG_SENSOR_RESET, self.CAM_SENSOR_RESET_ENABLE) # Reset camera
         self._wait_idle()
@@ -292,7 +296,8 @@ class Camera:
         self.image_buffer = bytearray(self.BUFFER_MAX_LENGTH)
         self.valid_image_buffer = 0
         
-        self.camera_idx = 'NOT DETECTED'
+        #This seems to be overwriting the value so I am removing it set this before self._get_sensor_config()?
+        #self.camera_idx = 'NOT DETECTED'
         
         
         # Tracks the AWB warmup time
@@ -300,6 +305,10 @@ class Camera:
         if debug_information:
             print('Camera version =', self.camera_idx)
         if self.camera_idx == '3MP':
+            #fifo length is sometimes a broken value (5 to 8 megabytes) and causes program to fail this helps 
+            utime.sleep_ms(self.WHITE_BALANCE_WAIT_TIME_MS)
+            self._wait_idle()
+
             self.startup_routine_3MP()
         
         if self.camera_idx == '5MP' and skip_sleep == False:
@@ -308,11 +317,11 @@ class Camera:
 
     def startup_routine_3MP(self):
         # Leave the shutter open for some time seconds (i.e. take a few photos without saving)
-        print('Running 3MP startup routine')
+        if self.DEBUG_MODE: print('Running 3MP startup routine')
         self.capture_jpg()
         self.saveJPG('dummy_image.jpg')
         uos.remove('dummy_image.jpg')
-        print('complete')
+        if self.DEBUG_MODE: print('Finished 3MP startup routine')
 
     '''
     Issue warning if the filepath doesnt end in .jpg (Blank) and append
@@ -323,32 +332,36 @@ class Camera:
         if (utime.ticks_diff(utime.ticks_ms(), self.start_time) <= self.WHITE_BALANCE_WAIT_TIME_MS) and self.camera_idx == '5MP':
             print('Please add a ', self.WHITE_BALANCE_WAIT_TIME_MS, 'ms delay to allow for white balance to run')
         else:
-#             print('Starting capture JPG')
+
+            if self.DEBUG_MODE: print('Entered capture_jpg')
+
             # JPG, bmp ect
             # TODO: PROPERTIES TO CONFIGURE THE PIXEL FORMAT
             if (self.old_pixel_format != self.current_pixel_format) or self.run_start_up_config:
                 self.old_pixel_format = self.current_pixel_format
                 self._write_reg(self.CAM_REG_FORMAT, self.current_pixel_format) # Set to capture a jpg
                 self._wait_idle()
-#             print('old',self.old_resolution,'new',self.current_resolution_setting)
+
+            if self.DEBUG_MODE: print('old_resolution: ',self.old_resolution,'new_resolution: ',self.current_resolution_setting)
+
                 # TODO: PROPERTIES TO CONFIGURE THE RESOLUTION
             if (self.old_resolution != self.current_resolution_setting) or self.run_start_up_config:
                 self.old_resolution = self.current_resolution_setting
                 self._write_reg(self.CAM_REG_CAPTURE_RESOLUTION, self.current_resolution_setting)
-#                 print('setting res', self.current_resolution_setting)
+                if self.DEBUG_MODE: print('setting resolution: ', self.current_resolution_setting)
                 self._wait_idle()
             self.run_start_up_config = False
             
             # Start capturing the photo
             self._set_capture()
-#             print('capture jpg complete')
+            if self.DEBUG_MODE: print('Finished capture_jpg')
         
 
     # TODO: After reading the camera data clear the FIFO and reset the camera (so that the first time read can be used)
     def saveJPG(self,filename):
         headflag = 0
         print('Saving image, please dont remove power')
-#         print('rec len:', self.received_length)
+        if self.DEBUG_MODE: print('rec len:', self.received_length)
         
         image_data = 0x00
         image_data_next = 0x00
@@ -356,7 +369,7 @@ class Camera:
         image_data_int = 0x00
         image_data_next_int = 0x00
         
-        print(self.received_length)
+        #print(self.received_length)
         
         while(self.received_length):
             
@@ -365,44 +378,60 @@ class Camera:
             
             image_data_next = self._read_byte()
             image_data_next_int = int.from_bytes(image_data_next, 1) # TODO: CHANGE TO READ n BYTES
-            if headflag == 1:
+            if headflag == 0:
+                if (image_data_int == 0xff) and (image_data_next_int == 0xd8):
+                    # TODO: Save file to filename
+#                    print('start of file', self.received_length)
+                    headflag = 1
+                    jpg_to_write = open(filename,'ab')
+                    jpg_to_write.write(image_data)
+                    jpg_to_write.write(image_data_next)
+            else:
                 jpg_to_write.write(image_data_next)
-            
-            if (image_data_int == 0xff) and (image_data_next_int == 0xd8):
-                # TODO: Save file to filename
-#                 print('start of file')
-                headflag = 1
-                jpg_to_write = open(filename,'ab')
-                jpg_to_write.write(image_data)
-                jpg_to_write.write(image_data_next)
-                
-            if (image_data_int == 0xff) and (image_data_next_int == 0xd9):
-#                 print('TODO: Save and close file?')
-                headflag = 0
-                jpg_to_write.write(image_data_next)
-                jpg_to_write.close()
+                if (image_data_int == 0xff) and (image_data_next_int == 0xd9):
+#                    print('close file', self.received_length)
+                    jpg_to_write.close()
+                    break;
 
 
+    #resolution = '640x480'
+    #saveJPG        31.373s
+    #save_JPG_burst 0.8679999s
+    #save_JPG_burst did not work with resolution = '320X240' not sure why, output file is empty
 
+    def save_JPG_burst(self,filename):
+#        print('start of file', self.received_length)
+        jpg_to_write = open(filename,'ab')
+ 
+        recv_len = self.received_length 
+        
+        self.cs.off()
+        self.spi_bus.write(bytes([self.BURST_FIFO_READ]))
+        
+        # Throw away first byte on first read
+        data = self.spi_bus.read(1)
+        
+        inx = 0
 
-
-    def save_JPG_burst(self):
-        headflag = 0
-        print('Saving image, please dont remove power')
-
-        image_data = 0x00
-        image_data_next = 0x00
-
-        image_data_int = 0x00
-        image_data_next_int = 0x00
-
-        print(self.received_length)
-
-        while(self.received_length):
-            self._burst_read_FIFO()
-            
-            start_bytes = self.image_buffer[0]
-            end_bytes = self.image_buffer[self.valid_image_buffer-1]
+        while recv_len > 0:
+            last_byte = self.image_buffer[self.BUFFER_MAX_LENGTH - 1]
+#            print('last', last_byte)
+            self.spi_bus.readinto(self.image_buffer)
+            recv_len -= self.BUFFER_MAX_LENGTH
+#            if self.image_buffer[0] == 0xff and self.image_buffer[1] == 0xd8:
+#                print('start of jpeg image')
+#            print('buff', self.image_buffer)
+            inx = self.image_buffer.find(b'\xff\xd9')
+            if inx >= 0:
+                jpg_to_write.write(self.image_buffer[:inx+2])
+#                print(self.image_buffer[:inx+2])
+                break
+            elif last_byte == 0xff and self.image_buffer[0] == 0xd9:
+                jpg_to_write.write(b'\xd9')
+#                print('corner case termination')
+                break
+            else:
+                jpg_to_write.write(self.image_buffer)
             
         
 #     def _read_byte(self):
@@ -415,34 +444,34 @@ class Camera:
 #         return data
 
 
-    def _burst_read_FIFO(self):
-        #compute how many bytes to read
-        burst_read_length = self.BUFFER_MAX_LENGTH # Default to max length
-        if self.received_length < self.BUFFER_MAX_LENGTH:
-            burst_read_length = self.received_length
-        current_buffer_byte = 0
+    # def _burst_read_FIFO(self):
+    #     #compute how many bytes to read
+    #     burst_read_length = self.BUFFER_MAX_LENGTH # Default to max length
+    #     if self.received_length < self.BUFFER_MAX_LENGTH:
+    #         burst_read_length = self.received_length
+    #     current_buffer_byte = 0
         
-        self.cs.off()
-        self.spi_bus.write(bytes([self.BURST_FIFO_READ]))
+    #     self.cs.off()
+    #     self.spi_bus.write(bytes([self.BURST_FIFO_READ]))
         
-        data = self.spi_bus.read(1)
-        # Throw away first byte on first read
-        if self.first_burst_fifo == True:
-            self.image_buffer[current_buffer_byte] = data
-            current_buffer_byte += 1
-            burst_read_length -= 1
-            print('first burst read')
+    #     data = self.spi_bus.read(1)
+    #     # Throw away first byte on first read
+    #     if self.first_burst_fifo == True:
+    #         self.image_buffer[current_buffer_byte] = data
+    #         current_buffer_byte += 1
+    #         burst_read_length -= 1
+    #         print('first burst read')
             
         
-        while burst_read_length:
-            data = self.spi_bus.read(1) # Read from camera
-            self.image_buffer[current_buffer_byte] = data # write to buffer
-            current_buffer_byte += 1
-            burst_read_length -= 1
+    #     while burst_read_length:
+    #         data = self.spi_bus.read(1) # Read from camera
+    #         self.image_buffer[current_buffer_byte] = data # write to buffer
+    #         current_buffer_byte += 1
+    #         burst_read_length -= 1
 
-        self.cs.on()
-        self.received_length -= burst_read_length
-        self.valid_image_buffer = burst_read_length
+    #     self.cs.on()
+    #     self.received_length -= burst_read_length
+    #     self.valid_image_buffer = burst_read_length
 
 
     @property
@@ -565,25 +594,35 @@ class Camera:
         self._write_reg(self.ARDUCHIP_FIFO, self.FIFO_START_MASK)
 
     def _set_capture(self):
-#         print('a1')
+        if self.DEBUG_MODE: print('Entered _set_capture')
         self._clear_fifo_flag()
         self._wait_idle()
         self._start_capture()
-#         print('a2')
+        if self.DEBUG_MODE: print('fifo flag cleared, started _start_capture, waiting for CAP_DONE_MASK')
         while (int(self._get_bit(self.ARDUCHIP_TRIG, self.CAP_DONE_MASK)) == 0):
-#             print(self._get_bit(self.ARDUCHIP_TRIG, self.CAP_DONE_MASK))
+            if self.DEBUG_MODE: print("ARDUCHIP_TRIG register, CAP_DONE_MASK:", self._get_bit(self.ARDUCHIP_TRIG, self.CAP_DONE_MASK))
             sleep_ms(200)
-#         print('a3')
+        if self.DEBUG_MODE:print('finished waiting for _start_capture')
+        
+        #_read_fifo_length() was giving imposible value tried adding wait, did not seem to fix it
+        self._wait_idle()
+
         self.received_length = self._read_fifo_length()
         self.total_length = self.received_length
         self.burst_first_flag = False
-#         print('a4')
+        if self.DEBUG_MODE: print('fifo length has been read')
     
     def _read_fifo_length(self): # TODO: CONFIRM AND SWAP TO A 3 BYTE READ
-        len1 = int.from_bytes(self._read_reg(self.FIFO_SIZE1),1)
-        len2 = int.from_bytes(self._read_reg(self.FIFO_SIZE2),1)
-        len3 = int.from_bytes(self._read_reg(self.FIFO_SIZE3),1)
-#         print(len1,len2,len3)
+        if self.DEBUG_MODE: print('Entered _read_fifo_length')
+        len1 = int.from_bytes(self._read_reg(self.FIFO_SIZE1),1) #0x45
+        len2 = int.from_bytes(self._read_reg(self.FIFO_SIZE2),1) #0x46
+        len3 = int.from_bytes(self._read_reg(self.FIFO_SIZE3),1) #0x47
+        if self.DEBUG_MODE: 
+            print("fifo length bytes (int):")
+            print(len1,len2,len3)
+        if ((((len3 << 16) | (len2 << 8) | len1) & 0xffffff)>5000000): 
+            print("Error fifo length is too long >5MB Size: ", (((len3 << 16) | (len2 << 8) | len1) & 0xffffff))
+            print("Arducam possibly did not take a picture and is returning garbage data")
         return ((len3 << 16) | (len2 << 8) | len1) & 0xffffff
 
     def _get_sensor_config(self):
@@ -641,6 +680,3 @@ class Camera:
     def _get_bit(self, addr, bit):
         data = self._read_reg(addr);
         return int.from_bytes(data, 1) & bit;
-
-
-
