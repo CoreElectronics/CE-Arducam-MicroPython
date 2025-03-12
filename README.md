@@ -6,6 +6,12 @@ Status: **Experimental**
 This driver is very much experimental at the moment. Expect frequent, breaking updates.
 This project is featured in the 27-July-2023 episode of [The Factory](https://youtu.be/M_b3kmnjF9Y) - Core Electronics' Engineering and Product Development vlog.
 
+## Contributions:
+
+Thank you to @[chrisrothwell1](https://github.com/chrisrothwell1) for getting burst reads working - significantly removing the same time for each image (https://github.com/CoreElectronics/CE-Arducam-MicroPython/issues/9)
+
+Thank you to @[wil-liammacleod](https://github.com/wil-liammacleod) for adding debug mode, a pin reference for the ESP32-S3 and testing on MicroPython 1.24 (https://github.com/CoreElectronics/CE-Arducam-MicroPython/pull/11)
+
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=M_b3kmnjF9Y" target="_blank">
  <img src="http://img.youtube.com/vi/M_b3kmnjF9Y/mqdefault.jpg" alt="Watch the video" width="240" height="180" border="10" />
 </a>
