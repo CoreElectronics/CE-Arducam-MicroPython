@@ -31,7 +31,30 @@ Project Status:
 - [ ] Confirm that different file formats output correctly (RGB=BMP, YGV?)
 - [ ] Confirm that pixel RGB values can be extrapolated from BMP format for machine learning applications
 
-The Camera library can be created by extracting the 'Camera' class from the [camera.py](https://github.com/CoreElectronics/CE-Arducam-MicroPython/blob/main/camera.py) file.
+
+## Details
+
+`Camera(spi_bus=, cs=, skip_sleep=False, debug_text_enabled=False)`
+The Cameras initialisation method.
+
+Parameter | Type | Range            | Default                               | Description
+--------- | ---- | ---------------- | ------------------------------------- | --------------------------------------------------
+spi_bus   | SPI  | Device dependent | N/A                                   | The SPI Bus the camera is connected to.
+cs        | Pin  | Device dependent | N/A                                   | The Pin the CS wire is connected to.
+skip_sleep | Boolean  | True, False  | False                                | Skips the auto-white-balance on the 5MP Mega
+debug_text_enabled | Boolean | True, False  | False                         | If enabled, prints the status of the camera
+
+`Camera.capture_jpg()`
+Capture a JPG photo with the provided settings.
+
+`Camera.save_JPG(filename, progress_bar=True)`
+Requires `Camera.capture_jpg()` to be run first, saves the JPG to the filename provided (it should include the filetype extension `.jpg`.
+Note: This function can over-write other photos, we recommend using the filemanager.
+
+Parameter | Type | Range            | Default                               | Description
+--------- | ---- | ---------------- | ------------------------------------- | --------------------------------------------------
+filename  | str  | N/A              | 'image.jpg'                           | The file path for the image.
+progress_bar | Boolean | True, False | True                                 | Prints a progress bar as the image saves.
 
 # License
 This project is open source - please review the LICENSE.md file for further licensing information.
