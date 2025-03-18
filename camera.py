@@ -271,37 +271,12 @@ class Camera:
             self._set_capture()
             if self.debug_text_enabled: print('Finished capture_jpg')
 
-    def save_JPG(self,filename):
-        headflag = 0
-        print('Saving image, please dont remove power')
-        if self.debug_text_enabled: print('Received Buffer Length:', self.received_length)
-        image_data = 0x00
-        image_data_next = 0x00
-        image_data_int = 0x00
-        image_data_next_int = 0x00
-        while(self.received_length):
-            image_data = image_data_next
-            image_data_int = image_data_next_int
-            image_data_next = self._read_byte()
-            image_data_next_int = int.from_bytes(image_data_next, 1)
-            if headflag == 0:
-                if (image_data_int == 0xff) and (image_data_next_int == 0xd8):
-                    headflag = 1
-                    jpg_to_write = open(filename,'ab')
-                    jpg_to_write.write(image_data)
-                    jpg_to_write.write(image_data_next)
-            else:
-                jpg_to_write.write(image_data_next)
-                if (image_data_int == 0xff) and (image_data_next_int == 0xd9):
-                    jpg_to_write.close()
-                    break;
-
-    def update_progress(self, progress, bar_length=20):
+    def _update_progress(self, progress, bar_length=20):
         filled_length = int(bar_length * progress)
         bar = '#' * filled_length + '-' * (bar_length - filled_length)
         print("Progress: |{}| {}%".format(bar, int(progress * 100)), end='\r')
 
-    def save_JPG_burst(self, filename, progress_bar=True): # From the amazing - @chrisrothwell1 - https://github.com/CoreElectronics/CE-Arducam-MicroPython/issues/9
+    def save_JPG(self, filename="image.jpg", progress_bar=True): # From the amazing - @chrisrothwell1 - https://github.com/CoreElectronics/CE-Arducam-MicroPython/issues/9
         jpg_to_write = open(filename,'ab')
         recv_len = self.received_length
         starting_len = recv_len
@@ -311,7 +286,7 @@ class Camera:
         inx = 0
         while recv_len > 0:
             progress = (starting_len - recv_len)/starting_len
-            if progress_bar: self.update_progress(progress)
+            if progress_bar: self._update_progress(progress)
 
             last_byte = self.image_buffer[self.BUFFER_MAX_LENGTH - 1]
             self.spi_bus.readinto(self.image_buffer)
@@ -320,14 +295,14 @@ class Camera:
             if inx >= 0:
                 jpg_to_write.write(self.image_buffer[:inx+2])
                 jpg_to_write.close()
-                if progress_bar: self.update_progress(1)
+                if progress_bar: self._update_progress(1)
                 print()
                 print("Image saved")
                 break
             elif last_byte == 0xff and self.image_buffer[0] == 0xd9:
                 jpg_to_write.write(b'\xd9')
                 jpg_to_write.close()
-                if progress_bar: self.update_progress(1)
+                if progress_bar: self._update_progress(1)
                 print()
                 print("Image saved")
                 break

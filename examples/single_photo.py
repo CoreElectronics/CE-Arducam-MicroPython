@@ -1,40 +1,23 @@
+# A single, simple photo
 
-from machine import Pin, SPI
-from camera import *
+# Import required modules
+from machine import Pin, SPI, reset
+from Camera import *
 
-'''
-#################### PINOUT ####################
-Camera pin - Pico Pin
-VCC - 3V3 - red
-GND - GND - black
-SPI - 0
-SCK - GP18 - white
-MISO - RX - GP16 - brown
-MOSI - TX - GP19 - yellow
-CS - GP17 - orange
-
-Camera pin - ESP32 S3
-VCC - 3V3 - red
-GND - GND - black
-SPI - 2
-SCK - GP12 - white
-MISO - RX - GP13 - brown
-MOSI - TX - GP11 - yellow
-CS - GP17 - orange
-'''
-
-spi = SPI(2,sck=Pin(12), miso=Pin(13), mosi=Pin(11), baudrate=8000000)
+spi = SPI(0,sck=Pin(18), miso=Pin(16), mosi=Pin(19), baudrate=8000000) # Pins for the Raspberry Pi Pico
 cs = Pin(17, Pin.OUT)
 
-# button = Pin(15, Pin.IN,Pin.PULL_UP)
-onboard_LED = Pin(48, Pin.OUT)
+# A manager to handling new photos being taken
+filemanager = FileManager()
 
-cam = Camera(spi, cs)
+# Create a "Camera" object with the SPI interface defined above
+cam = Camera(spi, cs) # Default resolution of 640x480
 
-cam.resolution = '640x480'
-
-onboard_LED.on()
+# Capture a photo - this only takes a moment
 cam.capture_jpg()
-sleep_ms(50)
-cam.saveJPG('image.jpg')
-onboard_LED.off()
+
+# To let any data settle
+sleep_ms(5)
+
+# Save the photo into the onboard memory
+cam.save_JPG_burst(fm.new_jpg_filename('image'))
