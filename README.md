@@ -12,6 +12,8 @@ Thank you to @[chrisrothwell1](https://github.com/chrisrothwell1) for getting bu
 
 Thank you to @[wil-liammacleod](https://github.com/wil-liammacleod) for adding debug mode, a pin reference for the ESP32-S3 and testing on MicroPython 1.24 (https://github.com/CoreElectronics/CE-Arducam-MicroPython/pull/11)
 
+Thank you to @[koyuul](https://github.com/koyuul) for fixing up some errors, allowing `main.py` to be run out of the box, and adding an example for using many Cameras on the same SPI interface.
+
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=M_b3kmnjF9Y" target="_blank">
  <img src="http://img.youtube.com/vi/M_b3kmnjF9Y/mqdefault.jpg" alt="Watch the video" width="240" height="180" border="10" />
 </a>
