@@ -41,5 +41,3 @@ sleep_ms(50)
 cam.save_jpg('image.jpg') # ...seperately
 
 onboard_LED.off()
-
-

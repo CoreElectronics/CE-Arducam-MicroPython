@@ -6,6 +6,10 @@ Status: **Experimental**
 This driver is very much experimental at the moment. Expect frequent, breaking updates.
 This project is featured in the 27-July-2023 episode of [The Factory](https://youtu.be/M_b3kmnjF9Y) - Core Electronics' Engineering and Product Development vlog.
 
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=M_b3kmnjF9Y" target="_blank">
+ <img src="http://img.youtube.com/vi/M_b3kmnjF9Y/mqdefault.jpg" alt="Watch the video" width="240" height="180" border="10" />
+</a>
+
 ## Contributions:
 
 Thank you to @[chrisrothwell1](https://github.com/chrisrothwell1) for getting burst reads working - significantly removing the same time for each image (https://github.com/CoreElectronics/CE-Arducam-MicroPython/issues/9)
@@ -14,21 +18,13 @@ Thank you to @[wil-liammacleod](https://github.com/wil-liammacleod) for adding d
 
 Thank you to @[koyuul](https://github.com/koyuul) for fixing up some errors, allowing `main.py` to be run out of the box, and adding an example for using many Cameras on the same SPI interface.
 
-<a href="http://www.youtube.com/watch?feature=player_embedded&v=M_b3kmnjF9Y" target="_blank">
- <img src="http://img.youtube.com/vi/M_b3kmnjF9Y/mqdefault.jpg" alt="Watch the video" width="240" height="180" border="10" />
-</a>
+
 
 Project Status:
-- [x] Confirmed working on 3MP Camera and 5MP Camera
-- [x] SOLVED: Photos have a green hue, camera_idx identifies the two versions - https://forum.arducam.com/t/mega-3mp-micropython-driver/5708
-- [x] Can set resolution
-- [ ] Can set remaining filters and modes
-- [ ] Able to set multiple adjustments at the same time ([see issue#3](https://github.com/CoreElectronics/CE-Arducam-MicroPython/issues))
-- [x] Class moved to separate file
-- [ ] Burst read - decrease time to save photo
-- [ ] Set SPI Speed higher - decrease time to save photo - Recommended speed from ArduCam 800000 baud, need to implement a check on init
+- [ ] Can set remaining filters and modes - with setters and getters
+- [x] Able to set multiple adjustments at the same time ([Ought to be addressed](https://github.com/CoreElectronics/CE-Arducam-MicroPython/issues/3))
+- [x] SOLVED: Burst read - decrease time to save photo - Thank you @[chrisrothwell1](https://github.com/chrisrothwell1)
 - [ ] Confirm a micro SD card can use the same SPI bus (Micropython compatibility) - requires camera to release SPI bus, bulk reading/writing into bytearray would speed this up
-- [x] Confirm working with the latest Micropython version - Version 1.24 tested
 - [ ] Filemanager also handles subfolders for images - Requires examples
 - [ ] Confirm that different file formats output correctly (RGB=BMP, YGV?)
 - [ ] Confirm that pixel RGB values can be extrapolated from BMP format for machine learning applications

@@ -1,6 +1,9 @@
+'''
+Demonstrating the `debug_text_enabled=True` argument in the Camera initialisation
+'''
+
 from machine import Pin, SPI
 from camera import *
-#Baud 8000000
 
 '''
 #################### PINOUT ####################
@@ -23,19 +26,12 @@ MOSI - TX - GP11 - yellow
 CS - GP17 - orange
 '''
 
-spi = SPI(2,sck=Pin(12), miso=Pin(13), mosi=Pin(11), baudrate=100000)
+spi = SPI(0,sck=Pin(18), miso=Pin(16), mosi=Pin(19), baudrate=7000000)
 cs = Pin(17, Pin.OUT)
 
-# button = Pin(15, Pin.IN,Pin.PULL_UP)
-onboard_LED = Pin(48, Pin.OUT)
+onboard_LED = Pin(15, Pin.OUT)
 
-cam = Camera(spi, cs, debug_information=True)
-'''
-RESOLUTION_160X120 = 0X00
-RESOLUTION_320X240 = 0X01
-RESOLUTION_640X480 = 0X02
-RESOLUTION_1280X720 = 0X03
-'''
+cam = Camera(spi, cs, debug_text_enabled=True)
 
 
 cam.resolution = '320X240'
@@ -46,8 +42,15 @@ start_time_capture = utime.ticks_ms()
 onboard_LED.on()
 cam.capture_jpg()
 sleep_ms(200)
-cam.saveJPG('image.jpg')
+cam.save_jpg('image.jpg')
 onboard_LED.off()
 
 total_time_ms = utime.ticks_diff(utime.ticks_ms(), start_time_capture)
-print('Time take: {}s'.format(total_time_ms/1000))
+print('Time taken: {}s'.format(total_time_ms/1000))
+
+'''
+Benchmarks
+- Default SPI speed (1000000?), cam.resolution = '640X480', no burst read (camera pointed at roof) ==== TIME: ~7.8 seconds
+- Increased speed (8000000), cam.resolution = '640X480', no burst read (camera pointed at roof) ==== TIME: ~7.3 seconds
+
+'''

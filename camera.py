@@ -202,9 +202,15 @@ class Camera:
     def __init__(self, spi_bus, cs, skip_sleep=False, debug_text_enabled=False):
         self.cs = cs
         self.spi_bus = spi_bus
+
         self.debug_text_enabled = debug_text_enabled
         self.camera_idx = 'NOT DETECTED'
+        self.skip_sleep = skip_sleep
         
+        user_baud = self._read_baud_from_init(spi_bus)
+        if user_baud < 7812499:
+            print("We recommend setting the SPI baudrate to at least 8_000_000")
+
         self._write_reg(self.CAM_REG_SENSOR_RESET, self.CAM_SENSOR_RESET_ENABLE) # Reset camera
         self._wait_idle()
         self._get_sensor_config() # Get camera sensor information
@@ -233,48 +239,51 @@ class Camera:
 
         # Tracks the AWB warmup time
         self.start_time = utime.ticks_ms()
-        if debug_text_enabled:
-            print('Camera version =', self.camera_idx)
+        if debug_text_enabled: print('INFO   : Camera version =', self.camera_idx)
         if self.camera_idx == '3MP':
-            utime.sleep_ms(self.WHITE_BALANCE_WAIT_TIME_MS)# fifo length is sometimes a broken value (5 to 8 megabytes) and causes program to fail this helps 
+            utime.sleep_ms(self.WHITE_BALANCE_WAIT_TIME_MS) # FIFO length is sometimes a broken value (5 to 8 megabytes) and causes program to fail, this helps 
             self._wait_idle()
-            self.startup_routine_3MP()
+            self._startup_routine_3MP()
         if self.camera_idx == '5MP' and skip_sleep == False:
             utime.sleep_ms(self.WHITE_BALANCE_WAIT_TIME_MS)
 
-    def startup_routine_3MP(self):
+    def _startup_routine_3MP(self):
         # Leave the shutter open for some time seconds (i.e. take a few photos without saving)
-        if self.debug_text_enabled: print('Running 3MP startup routine')
+        if self.debug_text_enabled: print('STATUS : Running 3MP startup routine')
         self.capture_jpg()
         self.save_jpg('dummy_image.jpg')
         uos.remove('dummy_image.jpg')
-        if self.debug_text_enabled: print('Finished 3MP startup routine')
+        if self.debug_text_enabled: print('STATUS: Finished 3MP startup routine')
 
     def capture_jpg(self):
         if (utime.ticks_diff(utime.ticks_ms(), self.start_time) <= self.WHITE_BALANCE_WAIT_TIME_MS) and self.camera_idx == '5MP':
-            print('Please add a ', self.WHITE_BALANCE_WAIT_TIME_MS, 'ms delay to allow for white balance to run')
+            print('WARNING: Please add a ', self.WHITE_BALANCE_WAIT_TIME_MS, 'ms delay to allow for white balance to run')
+            if self.skip_sleep == False:
+                print("INFO   : Running a blocking sleep to ensure an image is captured...")
+                sleep_ms(500)
         else:
-            if self.debug_text_enabled: print('Entered capture_jpg')
+            if self.debug_text_enabled: print('STATUS : Entered capture_jpg')
             if (self.old_pixel_format != self.current_pixel_format) or self.run_start_up_config:
                 self.old_pixel_format = self.current_pixel_format
                 self._write_reg(self.CAM_REG_FORMAT, self.current_pixel_format) # Set to capture a jpg
                 self._wait_idle()
-            if self.debug_text_enabled: print('Old_resolution: ',self.old_resolution,'New_resolution: ',self.current_resolution_setting)
+            if self.debug_text_enabled: print('UPDATE : Old_resolution: ',self.old_resolution,'New_resolution: ',self.current_resolution_setting)
             if (self.old_resolution != self.current_resolution_setting) or self.run_start_up_config:
                 self.old_resolution = self.current_resolution_setting
                 self._write_reg(self.CAM_REG_CAPTURE_RESOLUTION, self.current_resolution_setting)
-                if self.debug_text_enabled: print('Setting resolution: ', self.current_resolution_setting)
                 self._wait_idle()
             self.run_start_up_config = False
 
             # Start capturing the photo
             self._set_capture()
-            if self.debug_text_enabled: print('Finished capture_jpg')
+            if self.debug_text_enabled: print('STATUS : Finished capture_jpg')
 
     def _update_progress(self, progress, bar_length=20):
         filled_length = int(bar_length * progress)
         bar = '#' * filled_length + '-' * (bar_length - filled_length)
-        print("Progress: |{}| {}%".format(bar, int(progress * 100)), end='\r')
+        status = ''
+        if self.debug_text_enabled: status = 'STATUS : '
+        print("{}Progress: |{}| {}%".format(status, bar, int(progress * 100)), end='\r')
 
     def save_jpg(self, filename="image.jpg", progress_bar=True): # From the amazing - @chrisrothwell1 - https://github.com/CoreElectronics/CE-Arducam-MicroPython/issues/9
         jpg_to_write = open(filename,'ab')
@@ -297,7 +306,9 @@ class Camera:
                 jpg_to_write.close()
                 if progress_bar: self._update_progress(1)
                 print()
-                print("Image saved")
+                status = ''
+                if self.debug_text_enabled: status = 'STATUS : '
+                print("{}Image saved".format(status))
                 break
             elif last_byte == 0xff and self.image_buffer[0] == 0xd9:
                 jpg_to_write.write(b'\xd9')
@@ -319,13 +330,13 @@ class Camera:
             if input_string_lower in self.valid_3mp_resolutions:
                 self.current_resolution_setting = self.valid_3mp_resolutions[input_string_lower]
             else:
-                raise ValueError("Invalid resolution provided for {}, please select from {}".format(self.camera_idx, list(self.valid_3mp_resolutions.keys())))
+                raise ValueError("ERROR  : Invalid resolution provided for {}, please select from {}".format(self.camera_idx, list(self.valid_3mp_resolutions.keys())))
 
         elif self.camera_idx == '5MP':
             if input_string_lower in self.valid_5mp_resolutions:
                 self.current_resolution_setting = self.valid_5mp_resolutions[input_string_lower]
             else:
-                raise ValueError("Invalid resolution provided for {}, please select from {}".format(self.camera_idx, list(self.valid_5mp_resolutions.keys())))
+                raise ValueError("ERROR  : Invalid resolution provided for {}, please select from {}".format(self.camera_idx, list(self.valid_5mp_resolutions.keys())))
 
     def set_pixel_format(self, new_pixel_format):
         self.current_pixel_format = new_pixel_format
@@ -371,36 +382,43 @@ class Camera:
         self._write_reg(self.ARDUCHIP_FIFO, self.FIFO_START_MASK)
 
     def _set_capture(self):
-        if self.debug_text_enabled: print('Entered _set_capture')
+        if self.debug_text_enabled: print('STATUS : Entered _set_capture')
         self._clear_fifo_flag()
         self._wait_idle()
         self._start_capture()
-        if self.debug_text_enabled: print('FIFO flag cleared, started _start_capture, waiting for CAP_DONE_MASK')
+        if self.debug_text_enabled: print('STATUS : FIFO flag cleared, started _start_capture, waiting for CAP_DONE_MASK')
         while (int(self._get_bit(self.ARDUCHIP_TRIG, self.CAP_DONE_MASK)) == 0):
-            if self.debug_text_enabled: print("ARDUCHIP_TRIG register, CAP_DONE_MASK:", self._get_bit(self.ARDUCHIP_TRIG, self.CAP_DONE_MASK))
+            if self.debug_text_enabled: print("STATUS : ARDUCHIP_TRIG register, CAP_DONE_MASK:", self._get_bit(self.ARDUCHIP_TRIG, self.CAP_DONE_MASK))
             sleep_ms(200)
-        if self.debug_text_enabled:print('Finished waiting for _start_capture')
+        if self.debug_text_enabled:print('STATUS : Finished waiting for _start_capture')
 
-        #_read_fifo_length() was giving imposible value tried adding wait, did not seem to fix it
         self._wait_idle()
 
         self.received_length = self._read_fifo_length()
         self.total_length = self.received_length
         self.burst_first_flag = False
-        if self.debug_text_enabled: print('FIFO length has been read')
+        if self.debug_text_enabled: print('STATUS : FIFO length has been read')
 
     def _read_fifo_length(self):
-        if self.debug_text_enabled: print('Entered _read_fifo_length')
+        if self.debug_text_enabled: print('STATUS : Entered _read_fifo_length')
         len1 = int.from_bytes(self._read_reg(self.FIFO_SIZE1),1) #0x45
         len2 = int.from_bytes(self._read_reg(self.FIFO_SIZE2),1) #0x46
         len3 = int.from_bytes(self._read_reg(self.FIFO_SIZE3),1) #0x47
         if self.debug_text_enabled: 
-            print("FIFO length bytes (int), (int), (int):")
-            print(len1,len2,len3)
+            print(f"INFO   : FIFO length bytes: {len1} {len2} {len3}")
         if ((((len3 << 16) | (len2 << 8) | len1) & 0xffffff)>5000000): 
             print("Error fifo length is too long >5MB Size: ", (((len3 << 16) | (len2 << 8) | len1) & 0xffffff))
             print("Arducam possibly did not take a picture and is returning garbage data")
         return ((len3 << 16) | (len2 << 8) | len1) & 0xffffff
+
+    def _read_baud_from_init(self, spi):
+        spi_str = str(spi)
+        start_idx = spi_str.find("baudrate=") + len("baudrate=")
+        end_idx = spi_str.find(",", start_idx)
+        if start_idx > -1 and end_idx > -1:
+            actual_baudrate = int(spi_str[start_idx:end_idx])
+            return actual_baudrate
+        
 
     def _get_sensor_config(self):
         camera_id = self._read_reg(self.CAM_REG_SENSOR_ID);
@@ -451,3 +469,5 @@ class Camera:
     def _get_bit(self, addr, bit):
         data = self._read_reg(addr);
         return int.from_bytes(data, 1) & bit;
+
+
