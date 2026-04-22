@@ -246,7 +246,7 @@ class Camera:
         # Leave the shutter open for some time seconds (i.e. take a few photos without saving)
         if self.debug_text_enabled: print('Running 3MP startup routine')
         self.capture_jpg()
-        self.saveJPG('dummy_image.jpg')
+        self.save_jpg('dummy_image.jpg')
         uos.remove('dummy_image.jpg')
         if self.debug_text_enabled: print('Finished 3MP startup routine')
 
@@ -276,7 +276,7 @@ class Camera:
         bar = '#' * filled_length + '-' * (bar_length - filled_length)
         print("Progress: |{}| {}%".format(bar, int(progress * 100)), end='\r')
 
-    def save_JPG(self, filename="image.jpg", progress_bar=True): # From the amazing - @chrisrothwell1 - https://github.com/CoreElectronics/CE-Arducam-MicroPython/issues/9
+    def save_jpg(self, filename="image.jpg", progress_bar=True): # From the amazing - @chrisrothwell1 - https://github.com/CoreElectronics/CE-Arducam-MicroPython/issues/9
         jpg_to_write = open(filename,'ab')
         recv_len = self.received_length
         starting_len = recv_len
@@ -317,7 +317,7 @@ class Camera:
         input_string_lower = new_resolution.lower()        
         if self.camera_idx == '3MP':
             if input_string_lower in self.valid_3mp_resolutions:
-                self.current_resolution_setting = self.valid_5mp_resolutions[input_string_lower]
+                self.current_resolution_setting = self.valid_3mp_resolutions[input_string_lower]
             else:
                 raise ValueError("Invalid resolution provided for {}, please select from {}".format(self.camera_idx, list(self.valid_3mp_resolutions.keys())))
 
