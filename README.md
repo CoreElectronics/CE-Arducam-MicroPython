@@ -4,6 +4,7 @@ This is the Repo for the Core Electronics port of the Arducam Mega Cameras for t
 
 Status: **Experimental**
 This driver is very much experimental at the moment. Expect frequent, breaking updates.
+
 This project is featured in the 27-July-2023 episode of [The Factory](https://youtu.be/M_b3kmnjF9Y) - Core Electronics' Engineering and Product Development vlog.
 
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=M_b3kmnjF9Y" target="_blank">
@@ -21,13 +22,7 @@ Thank you to @[koyuul](https://github.com/koyuul) for fixing up some errors, all
 
 
 Project Status:
-- [ ] Can set remaining filters and modes - with setters and getters
-- [x] Able to set multiple adjustments at the same time ([Ought to be addressed](https://github.com/CoreElectronics/CE-Arducam-MicroPython/issues/3))
-- [x] SOLVED: Burst read - decrease time to save photo - Thank you @[chrisrothwell1](https://github.com/chrisrothwell1)
-- [ ] Confirm a micro SD card can use the same SPI bus (Micropython compatibility) - requires camera to release SPI bus, bulk reading/writing into bytearray would speed this up
-- [ ] Filemanager also handles subfolders for images - Requires examples
-- [ ] Confirm that different file formats output correctly (RGB=BMP, YGV?)
-- [ ] Confirm that pixel RGB values can be extrapolated from BMP format for machine learning applications
+*Moved to TODO.md*
 
 
 ## Details

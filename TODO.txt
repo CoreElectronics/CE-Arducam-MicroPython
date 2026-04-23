@@ -1,3 +1,9 @@
 camera.py
 
-- [ ] debug_text_enabled - more verbose output, use labels 'WARNING', 'ERROR', 'STATUS', 'UPDATE', 'INFO'
+- Stream to SD card
+- Set remaining modes and filters with setter and getters
+- filemanager handles subfolders for images (make example
+- Confirm different file formats work as expected, i.e. RGB -> BMP? What is YGV?
+- Using those BMP, could we pull pixel data? Then use that for machine vision?
+
+- Update documentation, tables etc - see PiicoDev

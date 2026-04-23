@@ -9,15 +9,15 @@ from camera import *
 Pinout for Raspberry Pi Pico
 
 # Power
-VCC - 3V3 - red
-GND - GND - black
+VCC  - 3V3 -      - Red
+GND  - GND -      - Black
 
 # SPI(0)
 
-SCK - GP18 - White
-MISO - RX - GP16 - Brown
-MOSI - TX - GP19 - Yellow
-CS - GP17 - Orange
+SCK  -     - GP18 - White
+MISO - RX  - GP16 - Brown
+MOSI - TX  - GP19 - Yellow
+CS   -     - GP17 - Orange
 '''
 
 # Initialise hardware, high SPI baudrate to save images faster

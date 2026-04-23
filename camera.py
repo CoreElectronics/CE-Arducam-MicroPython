@@ -50,6 +50,13 @@ class FileManager:
         with open(self.FILE_MANAGER_LOG_NAME, 'w') as f:
             f.write(ujson.dumps(self.file_dict))
 
+    def filesystem_space(self):
+        fs_stat = uos.statvfs('/')
+        block_size = fs_stat[0]
+        free_blocks = fs_stat[3]
+        free_bytes = block_size * free_blocks
+        return free_bytes
+
 
 
 class Camera:
